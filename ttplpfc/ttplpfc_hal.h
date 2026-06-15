@@ -423,19 +423,23 @@ static inline void TTPLPFC_HAL_clearOSTPWMTripFlag(uint32_t base)
 #pragma FUNC_ALWAYS_INLINE(TTPLPFC_HAL_forceOSTPWMTrip_onAllPWM)
 static inline void TTPLPFC_HAL_forceOSTPWMTrip_onAllPWM()
 {
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
     EPWM_forceTripZoneEvent(TTPLPFC_LOW_FREQ_PWM_BASE, EPWM_TZ_FORCE_EVENT_OST);
+#endif
     EPWM_forceTripZoneEvent(TTPLPFC_HIGH_FREQ_PWM1_BASE, EPWM_TZ_FORCE_EVENT_OST);
 
 #if TTPLPFC_TOTAL_NO_PHASES >= 2
     EPWM_forceTripZoneEvent(TTPLPFC_HIGH_FREQ_PWM2_BASE, EPWM_TZ_FORCE_EVENT_OST);
 #endif
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
     EPWM_setActionQualifierContSWForceAction(TTPLPFC_LOW_FREQ_PWM_BASE,
                                             EPWM_AQ_OUTPUT_A ,
                                             EPWM_AQ_SW_OUTPUT_LOW);
     EPWM_setActionQualifierContSWForceAction(TTPLPFC_LOW_FREQ_PWM_BASE,
                                             EPWM_AQ_OUTPUT_B ,
                                             EPWM_AQ_SW_OUTPUT_LOW);
+#endif
 
 
 }
@@ -449,6 +453,12 @@ static inline void TTPLPFC_HAL_forceOSTPWMTrip(uint32_t base)
 #pragma FUNC_ALWAYS_INLINE(TTPLPFC_HAL_clearPWMInterruptFlag)
 static inline void TTPLPFC_HAL_clearPWMInterruptFlag(uint32_t base)
 {
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 0
+    if(base == TTPLPFC_LOW_FREQ_PWM_BASE)
+    {
+        return;
+    }
+#endif
     EPWM_clearEventTriggerInterruptFlag(base);
 }
 

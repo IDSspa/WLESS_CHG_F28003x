@@ -883,8 +883,10 @@ static inline void TTPLPFC_pwmDriver()
                 TTPLPFC_duty1_pu = 0.004;
                 TTPLPFC_duty2_pu = 0.004;
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
                 TTPLPFC_HAL_AQ_SW_FORCE_PWMxA_LOW_PWMxB_LOW(
                         TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
 
                 TTPLPFC_HAL_SET_PWM_DBRED(
                         TTPLPFC_HIGH_FREQ_PWM1_BASE, TTPLPFC_PWM_PERIOD);
@@ -904,7 +906,9 @@ static inline void TTPLPFC_pwmDriver()
                 TTPLPFC_gi2.i6 = 1;
                 TTPLPFC_gi2_out = 0;
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
                 TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
                 TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_HIGH_FREQ_PWM1_BASE);
                 TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_HIGH_FREQ_PWM2_BASE);
 
@@ -925,8 +929,10 @@ static inline void TTPLPFC_pwmDriver()
             //
             //AQCSFRC xA LOW, xB HIGH
             //
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
             TTPLPFC_HAL_AQ_SW_FORCE_PWMxA_LOW_PWMxB_HIGH(
                     TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
 
             TTPLPFC_HAL_SET_PWM_DBRED(
                  TTPLPFC_HIGH_FREQ_PWM1_BASE, TTPLPFC_dbRED_SetValue_ticks);
@@ -957,8 +963,10 @@ static inline void TTPLPFC_pwmDriver()
                 //
                 //AQCSFRC xA LOW, xB LOW
                 //
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
                 TTPLPFC_HAL_AQ_SW_FORCE_PWMxA_LOW_PWMxB_LOW(
                         TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
 
                 #if TTPLPFC_AEF_ENABLED == 1
                 AEF_enable = 0;
@@ -1119,8 +1127,10 @@ static inline void TTPLPFC_pwmDriver()
             //
             //AQCSFRC xA HIGH, xB LOW
             //
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
             TTPLPFC_HAL_AQ_SW_FORCE_PWMxA_HIGH_PWMxB_LOW(
                     TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
 
             TTPLPFC_HAL_SET_PWM_DBRED(TTPLPFC_HIGH_FREQ_PWM1_BASE,
                                       TTPLPFC_dbRED_SetValue1_ticks);
@@ -1153,8 +1163,10 @@ static inline void TTPLPFC_pwmDriver()
                 //
                 // AQCSFRC xA LOW, xB LOW  for the low freq switches
                 //
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
                 TTPLPFC_HAL_AQ_SW_FORCE_PWMxA_LOW_PWMxB_LOW(
                         TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
 
                 #if TTPLPFC_AEF_ENABLED == 1
                     AEF_enable = 0;
@@ -1310,8 +1322,10 @@ static inline void TTPLPFC_pwmDriver()
             TTPLPFC_duty1_pu = 0.01f;
             TTPLPFC_duty2_pu = 0.01f;
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
             TTPLPFC_HAL_AQ_SW_FORCE_PWMxA_LOW_PWMxB_LOW(
                     TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
 
             TTPLPFC_HAL_SET_PWM_DBRED(TTPLPFC_HIGH_FREQ_PWM1_BASE,
                                       TTPLPFC_PWM_PERIOD);
@@ -1350,8 +1364,10 @@ static inline void TTPLPFC_pwmDriver_DC()
         //
         //AQCSFRC xA LOW, xB HIGH
         //
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
         TTPLPFC_HAL_AQ_SW_FORCE_PWMxA_LOW_PWMxB_HIGH(
                 TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
 
         TTPLPFC_HAL_SET_PWM_DBRED(TTPLPFC_HIGH_FREQ_PWM1_BASE,
                                   TTPLPFC_dbRED_SetValue_ticks);
@@ -1373,8 +1389,10 @@ static inline void TTPLPFC_pwmDriver_DC()
         //
         //AQCSFRC xA HIGH, xB LOW
         //
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
         TTPLPFC_HAL_AQ_SW_FORCE_PWMxA_HIGH_PWMxB_LOW(
                 TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
 
         TTPLPFC_HAL_SET_PWM_DBRED(TTPLPFC_HIGH_FREQ_PWM1_BASE,
                                   TTPLPFC_dbRED_SetValue_ticks);
@@ -1738,7 +1756,7 @@ static inline void TTPLPFC_underVoltageProtection()
 #pragma FUNC_ALWAYS_INLINE(TTPLPFC_overCurrentProtection)
 static inline void TTPLPFC_overCurrentProtection()
 {
-     if((TTPLPFC_PWM_TRIP_STATUS(TTPLPFC_LOW_FREQ_PWM_BASE) &
+     if((TTPLPFC_PWM_TRIP_STATUS(TTPLPFC_HIGH_FREQ_PWM1_BASE) &
                 EPWM_TZ_INTERRUPT_DCAEVT1) != 0)
     {
         TTPLPFC_pwm_SwState.enum_pwmSwState = pwmSwState_defaultState;
@@ -1766,7 +1784,7 @@ static inline void TTPLPFC_overCurrentProtection()
            TTPLPFC_pwm_SwState.enum_pwmSwState = pwmSwState_defaultState;
            TTPLPFC_board_Status.enum_boardStatus = boardStatus_FAULTn;
         }
-    }
+     }
 }
 
 

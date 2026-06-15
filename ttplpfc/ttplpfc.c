@@ -1053,8 +1053,10 @@ void TTPLPFC_autoStart(void)
 
                     TTPLPFC_duty1_pu = 0.01f;
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
                     TTPLPFC_HAL_AQ_SW_FORCE_PWMxA_LOW_PWMxB_LOW(
                             TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
 
                     TTPLPFC_HAL_SET_PWM_DBRED(TTPLPFC_HIGH_FREQ_PWM1_BASE,
                                               TTPLPFC_PWM_PERIOD);
@@ -1086,7 +1088,9 @@ void TTPLPFC_autoStart(void)
                     }
 
                     DINT;
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
                     TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
                     TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_HIGH_FREQ_PWM1_BASE);
                     TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_HIGH_FREQ_PWM2_BASE);
                     TTPLPFC_board_Status.enum_boardStatus = boardStatus_NoFault;
@@ -1177,8 +1181,10 @@ void TTPLPFC_autoStart(void)
                     TTPLPFC_duty1_pu = 0.01f;
                     TTPLPFC_duty2_pu = 0.01f;
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
                     TTPLPFC_HAL_AQ_SW_FORCE_PWMxA_LOW_PWMxB_LOW(
                             TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
 
                     TTPLPFC_HAL_SET_PWM_DBRED(TTPLPFC_HIGH_FREQ_PWM1_BASE,
                                               TTPLPFC_PWM_PERIOD);
@@ -1215,7 +1221,9 @@ void TTPLPFC_autoStart(void)
                     }
 
                     DINT;
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
                     TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
                     TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_HIGH_FREQ_PWM1_BASE);
                     TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_HIGH_FREQ_PWM2_BASE);
 #if TTPLPFC_TOTAL_NO_PHASES == 3
@@ -1245,7 +1253,9 @@ void TTPLPFC_autoStart(void)
                 #if (TTPLPFC_LAB == 1 && TTPLPFC_PWM_AC_CHECK == 1)
                 if (TTPLPFC_clearTrip == 1)
                     {
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
                     TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
                     TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_HIGH_FREQ_PWM1_BASE);
                     TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_HIGH_FREQ_PWM2_BASE);
 #if TTPLPFC_TOTAL_NO_PHASES == 3
@@ -1401,7 +1411,9 @@ void TTPLPFC_autoStart(void)
 
 #if TTPLPFC_DC_CHECK == 1
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
         TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
         TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_HIGH_FREQ_PWM1_BASE);
         TTPLPFC_HAL_clearPWMTripFlags(TTPLPFC_HIGH_FREQ_PWM2_BASE);
 

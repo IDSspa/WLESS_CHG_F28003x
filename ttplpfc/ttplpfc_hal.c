@@ -450,7 +450,9 @@ void TTPLPFC_HAL_setupBoardProtection(float32_t current_limit,
     XBAR_clearInputFlag(TTPLPFC_IL2_PROTECTION_XBAR_FLAG2);
     XBAR_clearInputFlag(TTPLPFC_FAULTn_XBAR_FLAG);
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
     TTPLPFC_HAL_setupPWMforTrip(TTPLPFC_LOW_FREQ_PWM_BASE);
+#endif
     TTPLPFC_HAL_setupPWMforTrip(TTPLPFC_HIGH_FREQ_PWM1_BASE);
     TTPLPFC_HAL_setupPWMforTrip(TTPLPFC_HIGH_FREQ_PWM2_BASE);
 
@@ -726,13 +728,17 @@ void TTPLPFC_HAL_setupPWM(uint16_t pwm_period_ticks,
                            uint16_t pwm_db_ticks_red, uint16_t pwm_db_ticks_fed)
 {
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
     TTPLPFC_HAL_setupPWM_UpDownCountWithDeadband(TTPLPFC_LOW_FREQ_PWM_BASE, pwm_period_ticks, pwm_db_ticks_red, pwm_db_ticks_fed);
+#endif
     TTPLPFC_HAL_setupPWM_UpDownCountWithDeadband(TTPLPFC_HIGH_FREQ_PWM1_BASE, pwm_period_ticks, pwm_db_ticks_red, pwm_db_ticks_fed);
     TTPLPFC_HAL_setupPWM_UpDownCountWithDeadband(TTPLPFC_HIGH_FREQ_PWM2_BASE, pwm_period_ticks, pwm_db_ticks_red, pwm_db_ticks_fed);
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
     HWREGH(TTPLPFC_LOW_FREQ_PWM_BASE + EPWM_O_AQCTLA) = 0;
     EPWM_setDeadBandDelayMode(TTPLPFC_LOW_FREQ_PWM_BASE, EPWM_DB_RED, false);
     EPWM_setDeadBandDelayMode(TTPLPFC_LOW_FREQ_PWM_BASE, EPWM_DB_FED, false);
+#endif
 
     //
     // Setup phase sync
@@ -740,9 +746,11 @@ void TTPLPFC_HAL_setupPWM(uint16_t pwm_period_ticks,
     //
 
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
     EPWM_disablePhaseShiftLoad(TTPLPFC_LOW_FREQ_PWM_BASE);
     EPWM_enableSyncOutPulseSource(TTPLPFC_LOW_FREQ_PWM_BASE,
                                      EPWM_SYNC_OUT_PULSE_ON_CNTR_ZERO);
+#endif
 
     EPWM_enablePhaseShiftLoad(TTPLPFC_HIGH_FREQ_PWM1_BASE);
     EPWM_setSyncInPulseSource(TTPLPFC_HIGH_FREQ_PWM1_BASE, TTPLPFC_PWM_SYNC_SOURCE);
@@ -782,8 +790,10 @@ void TTPLPFC_HAL_setupPWM(uint16_t pwm_period_ticks,
 
 
 
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
     EPWM_setActionQualifierContSWForceShadowMode(TTPLPFC_LOW_FREQ_PWM_BASE,
             EPWM_AQ_SW_SH_LOAD_ON_CNTR_ZERO);
+#endif
     EPWM_setActionQualifierContSWForceShadowMode(TTPLPFC_HIGH_FREQ_PWM1_BASE,
             EPWM_AQ_SW_SH_LOAD_ON_CNTR_ZERO);
     EPWM_setActionQualifierContSWForceShadowMode(TTPLPFC_HIGH_FREQ_PWM2_BASE,
@@ -806,11 +816,19 @@ void TTPLPFC_HAL_setPinsAsPWM()
 
     GPIO_setDirectionMode( TTPLPFC_LOW_FREQ_PWM_H_GPIO, GPIO_DIR_MODE_OUT);
     GPIO_setPadConfig(TTPLPFC_LOW_FREQ_PWM_H_GPIO, GPIO_PIN_TYPE_STD);
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
     GPIO_setPinConfig(TTPLPFC_LOW_FREQ_PWM_H_GPIO_PIN_CONFIG );
+#else
+    GPIO_setPinConfig(TTPLPFC_LOW_FREQ_PWM_H_GPIO_DISABLED_CONFIG);
+#endif
 
     GPIO_setDirectionMode(TTPLPFC_LOW_FREQ_PWM_L_GPIO, GPIO_DIR_MODE_OUT);
     GPIO_setPadConfig(TTPLPFC_LOW_FREQ_PWM_L_GPIO, GPIO_PIN_TYPE_STD);
+#if TTPLPFC_LOW_FREQ_PWM_ENABLED == 1
     GPIO_setPinConfig(TTPLPFC_LOW_FREQ_PWM_L_GPIO_PIN_CONFIG);
+#else
+    GPIO_setPinConfig(TTPLPFC_LOW_FREQ_PWM_L_GPIO_DISABLED_CONFIG);
+#endif
 
     GPIO_setDirectionMode(TTPLPFC_HIGH_FREQ_PWM1_H_GPIO, GPIO_DIR_MODE_OUT);
     GPIO_setPadConfig(TTPLPFC_HIGH_FREQ_PWM1_H_GPIO , GPIO_PIN_TYPE_STD);
@@ -967,4 +985,3 @@ void TTPLPFC_HAL_setupDAC(void)
     //
     DEVICE_DELAY_US(10);
 }
-
