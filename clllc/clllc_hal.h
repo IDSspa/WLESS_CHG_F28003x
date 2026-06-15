@@ -332,6 +332,24 @@ static inline void  CLLLC_HAL_setupSynchronousRectifierTripAction(
 }
 
 
+#if CLLLC_PWM3_SYNC90_ENABLED == 1
+#pragma FUNC_ALWAYS_INLINE(CLLLC_HAL_updatePWM3Sync90)
+static inline void CLLLC_HAL_updatePWM3Sync90(uint32_t period_ticks)
+{
+    uint16_t pwm3PeriodTicks = (uint16_t)(period_ticks >> 16);
+    uint16_t pwm3QuarterPeriodTicks = pwm3PeriodTicks >> 1;
+
+    //
+    // Keep PWM3 at the same frequency as PWM1 and 90 degrees behind it.
+    //
+    HWREGH(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_TBPRD) = pwm3PeriodTicks;
+    HWREGH(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_CMPA) =
+            pwm3QuarterPeriodTicks;
+    HWREGH(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_TBPHS) =
+            pwm3QuarterPeriodTicks;
+}
+#endif
+
 #pragma FUNC_ALWAYS_INLINE(CLLLC_HAL_updatePWMDutyPeriodPhaseShift)
 static inline void CLLLC_HAL_updatePWMDutyPeriodPhaseShift(
                                 uint32_t period_ticks,
@@ -346,6 +364,10 @@ static inline void CLLLC_HAL_updatePWMDutyPeriodPhaseShift(
 {
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_TBPRDHR) = period_ticks;
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPA) = dutyAPrim_ticks;
+
+#if CLLLC_PWM3_SYNC90_ENABLED == 1
+    CLLLC_HAL_updatePWM3Sync90(period_ticks);
+#endif
 
 #if CLLLC_SECONDARY_ENABLED == 1
     HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPA) = dutyASec_ticks;
@@ -380,6 +402,10 @@ static inline void CLLLC_HAL_updatePWMDutyPeriodPhaseShift_PhaseShiftMode(
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_TBPRDHR) = period_ticks;
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPA) = dutyAPrim_ticks;
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPB) = dutyAPrim_ticks;
+
+#if CLLLC_PWM3_SYNC90_ENABLED == 1
+    CLLLC_HAL_updatePWM3Sync90(period_ticks);
+#endif
 
 #if CLLLC_SECONDARY_ENABLED == 1
     HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPA) = dutyASec_ticks;

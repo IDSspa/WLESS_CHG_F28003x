@@ -390,7 +390,7 @@ void CLLLC_HAL_setupPWM3_Sync90DegToPWM1(void)
     //
     // Setup PWM3 basic configuration (same mode as PWM1).
     //
-    EPWM_setPeriodLoadMode(CLLLC_SEC_LEG1_PWM_BASE, EPWM_PERIOD_DIRECT_LOAD);
+    EPWM_setPeriodLoadMode(CLLLC_SEC_LEG1_PWM_BASE, EPWM_PERIOD_SHADOW_LOAD);
     EPWM_setTimeBasePeriod(CLLLC_SEC_LEG1_PWM_BASE, pwmPeriodTicks >> 1);
     EPWM_setTimeBaseCounter(CLLLC_SEC_LEG1_PWM_BASE, 0);
     EPWM_setTimeBaseCounterMode(CLLLC_SEC_LEG1_PWM_BASE,
