@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<?ccsproject version="1.0"?>
+<projectOptions>
+	<ccsVariant value="50:Theia-based"/>
+	<ccsVersion value="70.5.1"/>
+	<deviceFamily value="C2000"/>
+	<executableActions value=""/>
+	<createSlaveProjects value=""/>
+	<templateProperties value="id=OBC.projectspec.WLESS_CHG_F28003x"/>
+	<sourceLookupPath value="${C2000WARE_DLIB_ROOT}"/>
+	<origin value="/mnt/tirex-content/C2000Ware_DigitalPower_SDK_5_06_00_00/solutions/tidm_02013/f28003x/ccs/OBC.projectspec"/>
+	<filesToOpen value=""/>
+</projectOptions>

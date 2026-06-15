@@ -1,0 +1,62 @@
+//#############################################################################
+//
+// FILE:   driverlib.h
+//
+// TITLE:  Device setup for examples.
+//
+//#############################################################################
+// $TI Release: obc_7_4kw_ttplpfc_clllc v2.00.03.00 $
+// $Release Date: Tue Aug 26 14:08:13 CDT 2025 $
+// $Copyright:
+// Copyright (C) 2025 Texas Instruments Incorporated - http://www.ti.com/
+//
+// ALL RIGHTS RESERVED
+// $
+//#############################################################################
+
+#ifndef DRIVERLIB_H
+#define DRIVERLIB_H
+
+#include "inc/hw_memmap.h"
+
+#include "adc.h"
+#include "aes.h"
+#include "asysctl.h"
+#include "bgcrc.h"
+#include "can.h"
+#include "cla.h"
+#include "clb.h"
+#include "cmpss.h"
+#include "cpu.h"
+#include "cputimer.h"
+#include "dac.h"
+#include "dcc.h"
+#include "debug.h"
+#include "dma.h"
+#include "driver_inclusive_terminology_mapping.h"
+#include "ecap.h"
+#include "epg.h"
+#include "epwm.h"
+#include "eqep.h"
+#include "erad.h"
+#include "flash.h"
+#include "fsi.h"
+#include "gpio.h"
+#include "hic.h"
+#include "hrcap.h"
+#include "hrpwm.h"
+#include "i2c.h"
+#include "interrupt.h"
+#include "lin.h"
+#include "mcan.h"
+#include "memcfg.h"
+#include "pin_map.h"
+#include "pmbus.h"
+#include "sci.h"
+#include "sdfm.h"
+#include "spi.h"
+#include "sysctl.h"
+#include "version.h"
+#include "xbar.h"
+
+#endif  // end of DRIVERLIB_H definition
