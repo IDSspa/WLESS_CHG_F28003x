@@ -217,6 +217,9 @@ interrupt void ISR2_primToSecPowerFlow(void)
     CLLLC_HAL_setProfilingGPIO2();
 #endif
 #endif
+#if TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_BBC
+    TTPLPFC_BBC_runControlPlaceholder();
+#elif TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_LEGACY_PFC
 #if TTPLPFC_LAB == 1
     TTPLPFC_runISR1_lab1();
 #elif TTPLPFC_LAB == 2
@@ -242,6 +245,9 @@ interrupt void ISR2_primToSecPowerFlow(void)
     TTPLPFC_runISR1_lab9();
 #else
 #warning "undefined TTPLPFC lab"
+#endif
+#else
+#error "Invalid EPWM6/EPWM7 control selection"
 #endif
 
 
@@ -326,7 +332,9 @@ interrupt void ISR3(void)
     CLLLC_HAL_setProfilingGPIO3();
 
 
+#if TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_LEGACY_PFC
     TTPLPFC_runISR2();
+#endif
     CLLLC_runISR3();
 
     CLLLC_HAL_resetProfilingGPIO3();
@@ -514,7 +522,8 @@ void B1(void)
 
 void B2(void)
 {
-#if TTPLPFC_AUTO_START == 1
+#if (TTPLPFC_AUTO_START == 1) && \
+    (TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_LEGACY_PFC)
     TTPLPFC_autoStart();
 #endif
 
@@ -532,7 +541,9 @@ void B3(void)
 #if Profiling
     TTPLPFC_computeISRloading();
 #endif
+#if TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_LEGACY_PFC
     TTPLPFC_runCoefficientsUpdate();
+#endif
 
     CLLLC_HAL_toggleLED1();
 

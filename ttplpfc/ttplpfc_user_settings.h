@@ -23,6 +23,23 @@
 
 #define TTPLPFC_AEF_ENABLED 0
 
+//
+// Select the exclusive owner of EPWM6 and EPWM7.
+// Keep legacy PFC selected until the BBC control algorithm is implemented.
+//
+#define TTPLPFC_EPWM67_CONTROL_LEGACY_PFC           0
+#define TTPLPFC_EPWM67_CONTROL_BBC                  1
+
+#ifndef TTPLPFC_EPWM67_ACTIVE_CONTROL
+#define TTPLPFC_EPWM67_ACTIVE_CONTROL               \
+        TTPLPFC_EPWM67_CONTROL_LEGACY_PFC
+#endif
+
+#if (TTPLPFC_EPWM67_ACTIVE_CONTROL != TTPLPFC_EPWM67_CONTROL_LEGACY_PFC) && \
+    (TTPLPFC_EPWM67_ACTIVE_CONTROL != TTPLPFC_EPWM67_CONTROL_BBC)
+#error "Invalid EPWM6/EPWM7 control selection"
+#endif
+
 #if TTPLPFC_CONTROL_RUNNING_ON == CLA_CORE
 #define TTPLPFC_INSTRUMENTATION_ISR_RUNNING_ON CLA_CORE
 #else
@@ -115,6 +132,19 @@
 #define TTPLPFC_HIGH_FREQ_PWM2_L_GPIO_PIN_CONFIG    GPIO_13_EPWM7_B
 #define TTPLPFC_HIGH_FREQ_PWM2_L_PHASE_SHEDDING_GPIO_PIN_CONFIG      GPIO_13_GPIO13
 #endif
+
+//
+// The two original high-frequency PFC legs are reused as the interleaved
+// bidirectional boost-buck converter (BBC). Keep the physical mapping here;
+// the control algorithm must only use the BBC interface.
+//
+#define TTPLPFC_BBC_LEG1_PWM_BASE                    TTPLPFC_HIGH_FREQ_PWM1_BASE
+#define TTPLPFC_BBC_LEG1_HIGH_GPIO                   TTPLPFC_HIGH_FREQ_PWM1_H_GPIO
+#define TTPLPFC_BBC_LEG1_LOW_GPIO                    TTPLPFC_HIGH_FREQ_PWM1_L_GPIO
+
+#define TTPLPFC_BBC_LEG2_PWM_BASE                    TTPLPFC_HIGH_FREQ_PWM2_BASE
+#define TTPLPFC_BBC_LEG2_HIGH_GPIO                   TTPLPFC_HIGH_FREQ_PWM2_H_GPIO
+#define TTPLPFC_BBC_LEG2_LOW_GPIO                    TTPLPFC_HIGH_FREQ_PWM2_L_GPIO
 
 #if TTPLPFC_TOTAL_NO_PHASES == 3
 #define TTPLPFC_HIGH_FREQ_PWM3_BASE                 EPWM8_BASE

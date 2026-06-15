@@ -217,6 +217,8 @@ float32_t TTPLPFC_duty_clamp_low_pu;
 float32_t TTPLPFC_duty_DC_ref_pu;
 float32_t TTPLPFC_duty_DC_ref_final_pu;
 float32_t TTPLPFC_duty_ref_pu;
+volatile TTPLPFC_BBC_Mode TTPLPFC_bbcMode;
+volatile int32_t TTPLPFC_bbcEnabled;
 float32_t TTPLPFC_powerRms_Watts;
 float32_t TTPLPFC_ac_curRms_sensed_Amps;
 float32_t TTPLPFC_ac_volRms_sensed_Volts;
@@ -714,6 +716,8 @@ void TTPLPFC_globalVariablesInit(void)
 
     TTPLPFC_duty1_pu = 0;
     TTPLPFC_duty2_pu = 0;
+    TTPLPFC_bbcMode = TTPLPFC_BBC_MODE_DISABLED;
+    TTPLPFC_bbcEnabled = 0;
 
     TTPLPFC_closeGiLoop = 0;
     TTPLPFC_closeGvLoop = 0;

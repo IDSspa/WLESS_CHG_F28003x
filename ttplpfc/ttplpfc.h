@@ -270,6 +270,16 @@ typedef union{
 
 extern TTPLPFC_interleavingState TTPLPFC_interleaving_State;
 
+typedef enum
+{
+    TTPLPFC_BBC_MODE_DISABLED = 0,
+    TTPLPFC_BBC_MODE_BOOST = 1,
+    TTPLPFC_BBC_MODE_BUCK = 2
+} TTPLPFC_BBC_Mode;
+
+extern volatile TTPLPFC_BBC_Mode TTPLPFC_bbcMode;
+extern volatile int32_t TTPLPFC_bbcEnabled;
+
 //
 // globals
 //
@@ -451,6 +461,83 @@ extern float32_t TTPLPFC_duty_clamp_low_pu;
 extern float32_t TTPLPFC_duty_DC_ref_pu;
 extern float32_t TTPLPFC_duty_DC_ref_final_pu;
 extern float32_t TTPLPFC_duty_ref_pu;
+
+//
+// BBC interface. Boost/buck gate polarity is intentionally kept out of this
+// interface until the physical high-side/low-side mapping is verified.
+//
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_disable)
+static inline void TTPLPFC_BBC_disable(void)
+{
+    TTPLPFC_bbcEnabled = 0;
+    TTPLPFC_duty1_pu = 0.0f;
+    TTPLPFC_duty2_pu = 0.0f;
+
+    TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG1_PWM_BASE, 0.0f);
+    TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG2_PWM_BASE, 0.0f);
+    TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG1_PWM_BASE);
+    TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG2_PWM_BASE);
+}
+
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_setMode)
+static inline void TTPLPFC_BBC_setMode(TTPLPFC_BBC_Mode mode)
+{
+    if(mode != TTPLPFC_bbcMode)
+    {
+        TTPLPFC_BBC_disable();
+    }
+
+    if((mode == TTPLPFC_BBC_MODE_BOOST) ||
+       (mode == TTPLPFC_BBC_MODE_BUCK))
+    {
+        TTPLPFC_bbcMode = mode;
+    }
+    else
+    {
+        TTPLPFC_bbcMode = TTPLPFC_BBC_MODE_DISABLED;
+    }
+}
+
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_setDuty)
+static inline void TTPLPFC_BBC_setDuty(float32_t dutyLeg1,
+                                       float32_t dutyLeg2)
+{
+    dutyLeg1 = (dutyLeg1 > 1.0f) ? 1.0f : dutyLeg1;
+    dutyLeg1 = (dutyLeg1 < 0.0f) ? 0.0f : dutyLeg1;
+    dutyLeg2 = (dutyLeg2 > 1.0f) ? 1.0f : dutyLeg2;
+    dutyLeg2 = (dutyLeg2 < 0.0f) ? 0.0f : dutyLeg2;
+
+    TTPLPFC_duty1_pu = dutyLeg1;
+    TTPLPFC_duty2_pu = dutyLeg2;
+
+    if(TTPLPFC_bbcEnabled != 0)
+    {
+        TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG1_PWM_BASE, dutyLeg1);
+        TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG2_PWM_BASE, dutyLeg2);
+    }
+}
+
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_enable)
+static inline void TTPLPFC_BBC_enable(void)
+{
+    if(TTPLPFC_bbcMode != TTPLPFC_BBC_MODE_DISABLED)
+    {
+        TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG1_PWM_BASE);
+        TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG2_PWM_BASE);
+        TTPLPFC_bbcEnabled = 1;
+    }
+}
+
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_runControlPlaceholder)
+static inline void TTPLPFC_BBC_runControlPlaceholder(void)
+{
+    //
+    // The BBC control algorithm is not implemented yet. Keeping the selected
+    // controller disabled prevents legacy PFC code from driving EPWM6/EPWM7.
+    //
+    TTPLPFC_BBC_setMode(TTPLPFC_BBC_MODE_DISABLED);
+    TTPLPFC_BBC_disable();
+}
 
 //
 // Flags for clearing trips and closing the loops and the Relay
