@@ -158,6 +158,7 @@ void CLLLC_HAL_setupADC(void)
     //
     //ISEC
     //
+#if CLLLC_SECONDARY_ENABLED == 1
     ADC_setupSOC(CLLLC_ISEC_ADC_MODULE,
                  CLLLC_ISEC_ADC_SOC_NO_1,
                  CLLLC_ISEC_ADC_TRIG_SOURCE_1,
@@ -231,6 +232,7 @@ void CLLLC_HAL_setupADC(void)
 //                     CLLLC_ISEC_ADC_PIN,
 //                     CLLLC_ISEC_ADC_ACQPS_SYS_CLKS);
     #endif
+#endif
 
     //
     //VPRIM
@@ -265,6 +267,7 @@ void CLLLC_HAL_setupADC(void)
     //
     //VSEC
     //
+#if CLLLC_SECONDARY_ENABLED == 1
     ADC_setupSOC(CLLLC_VSEC_ADC_MODULE,
                  CLLLC_VSEC_ADC_SOC_NO_1,
                  CLLLC_VSEC_ADC_TRIG_SOURCE_1,
@@ -345,6 +348,7 @@ void CLLLC_HAL_setupADC(void)
 //                     CLLLC_VSEC_ADC_PIN,
 //                     CLLLC_VSEC_ADC_ACQPS_SYS_CLKS);
     #endif
+#endif
 
     //
     // IPRIM
@@ -358,11 +362,11 @@ void CLLLC_HAL_setupADC(void)
     //
     // setup another slow ADC conversion for ISR3 trigger
     //
-    ADC_setupSOC(CLLLC_VSEC_ADC_MODULE,
-                 CLLLC_VSEC_ADC_SOC_NO_13,
+    ADC_setupSOC(CLLLC_VPRIM_ADC_MODULE,
+                 CLLLC_VPRIM_ADC_SOC_NO_ISR3,
                  CLLLC_ADC_SOC_TRIG5,
-                 CLLLC_VSEC_ADC_PIN,
-                 CLLLC_VSEC_ADC_ACQPS_SYS_CLKS);
+                 CLLLC_VPRIM_ADC_PIN,
+                 CLLLC_VPRIM_ADC_ACQPS_SYS_CLKS);
 
 }
 
@@ -402,7 +406,7 @@ void CLLLC_HAL_setupBoardProtection()
 
 #endif
 
-#if CLLLC_BOARD_PROTECTION_ISEC == 1
+#if CLLLC_SECONDARY_ENABLED == 1 && CLLLC_BOARD_PROTECTION_ISEC == 1
 
     ASysCtl_selectCMPHPMux(CLLLC_ISEC_CMPSS_ASYSCTRL_CMPHPMUX,
                            CLLLC_ISEC_CMPSS_ASYSCTRL_MUX_VALUE);
@@ -425,7 +429,7 @@ void CLLLC_HAL_setupBoardProtection()
     #warning BOARD_PROTECTION_ISEC is disabled  --Not available on F28003x due to IPRIM_TANK CMPSS2 resource conflict
 #endif
 
-#if CLLLC_BOARD_PROTECTION_VSEC == 1
+#if CLLLC_SECONDARY_ENABLED == 1 && CLLLC_BOARD_PROTECTION_VSEC == 1
 
     ASysCtl_selectCMPHPMux(CLLLC_VSEC_CMPSS_ASYSCTRL_CMPHPMUX,
                            CLLLC_VSEC_CMPSS_ASYSCTRL_MUX_VALUE);
@@ -1529,6 +1533,21 @@ void CLLLC_HAL_sendCommandOverSCI(uint16_t mode, uint16_t voltage_ref)
 //
 void CLLLC_HAL_setupPWMpins(uint16_t mode)
 {
+#if CLLLC_SECONDARY_ENABLED == 0
+    //
+    // Keep the removed transformer secondary bridge outputs inactive.
+    //
+    GPIO_writePin(CLLLC_SEC_LEG1_PWM_H_GPIO, 0);
+    GPIO_writePin(CLLLC_SEC_LEG1_PWM_L_GPIO, 0);
+    GPIO_setPinConfig(CLLLC_SEC_LEG1_PWM_H_DIS_GPIO_PIN_CONFIG);
+    GPIO_setPinConfig(CLLLC_SEC_LEG1_PWM_L_DIS_GPIO_PIN_CONFIG);
+
+    GPIO_writePin(CLLLC_SEC_LEG2_PWM_H_GPIO, 0);
+    GPIO_writePin(CLLLC_SEC_LEG2_PWM_L_GPIO, 0);
+    GPIO_setPinConfig(CLLLC_SEC_LEG2_PWM_H_DIS_GPIO_PIN_CONFIG);
+    GPIO_setPinConfig(CLLLC_SEC_LEG2_PWM_L_DIS_GPIO_PIN_CONFIG);
+#endif
+
     //
     // if mode is 0 then disable prim & sec PWMs
     //
@@ -1584,6 +1603,7 @@ void CLLLC_HAL_setupPWMpins(uint16_t mode)
     //
     // if mode is 2 or 3 then enable sec PWM
     //
+    #if CLLLC_SECONDARY_ENABLED == 1
     if(mode == 2 || mode == 3)
     {
 
@@ -1603,6 +1623,7 @@ void CLLLC_HAL_setupPWMpins(uint16_t mode)
         GPIO_setPadConfig(CLLLC_SEC_LEG2_PWM_H_GPIO, GPIO_PIN_TYPE_STD);
         GPIO_setPinConfig(CLLLC_SEC_LEG2_PWM_H_GPIO_PIN_CONFIG );
     }
+    #endif
 }
 
 
@@ -1711,6 +1732,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
         //
         //setup the sec PWM
         //
+#if CLLLC_SECONDARY_ENABLED == 1
         CLLLC_HAL_setupHRPWMinUpDownCount2ChAsymmetricMode(
                                   CLLLC_SEC_LEG1_PWM_BASE,
                                   CLLLC_NOMINAL_PWM_SWITCHING_FREQUENCY_HZ,
@@ -1719,6 +1741,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
                                   CLLLC_SEC_LEG2_PWM_BASE,
                                   CLLLC_NOMINAL_PWM_SWITCHING_FREQUENCY_HZ,
                                   CLLLC_PWMSYSCLOCK_FREQ_HZ);
+#endif
 
         //
         //setup phase shift behavior
@@ -1740,6 +1763,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
         //
         // Sync action for SEC LEG1
         //
+#if CLLLC_SECONDARY_ENABLED == 1
         EPWM_enablePhaseShiftLoad(CLLLC_SEC_LEG1_PWM_BASE);
         EPWM_setSyncInPulseSource(CLLLC_SEC_LEG1_PWM_BASE, EPWM_SYNC_IN_PULSE_SRC_SYNCOUT_EPWM1);
         EPWM_setPhaseShift(CLLLC_SEC_LEG1_PWM_BASE, 2);
@@ -1753,13 +1777,13 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
         EPWM_setSyncInPulseSource(CLLLC_SEC_LEG2_PWM_BASE, EPWM_SYNC_IN_PULSE_SRC_SYNCOUT_EPWM1);
         EPWM_setPhaseShift(CLLLC_SEC_LEG2_PWM_BASE, 2);
         EPWM_setCountModeAfterSync(CLLLC_SEC_LEG2_PWM_BASE,
-                              EPWM_COUNT_MODE_UP_AFTER_SYNC);
-
+                               EPWM_COUNT_MODE_UP_AFTER_SYNC);
         //
         // used by blanking logic
         //
         EPWM_enableSyncOutPulseSource(CLLLC_SEC_LEG2_PWM_BASE,
                                       EPWM_SYNC_OUT_PULSE_ON_CNTR_ZERO);
+#endif
 
 
         //
@@ -1777,8 +1801,10 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
         HWREGH(CLLLC_PRIM_LEG2_PWM_BASE + EPWM_O_DBCTL) =
                 (HWREGH(CLLLC_PRIM_LEG2_PWM_BASE + EPWM_O_DBCTL) | 0x3000);
 
+#if CLLLC_SECONDARY_ENABLED == 1
         HWREGH(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_DBCTL) =
                 (HWREGH(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_DBCTL) | 0x3000);
+#endif
 
 
     }
@@ -1800,6 +1826,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
         //
         // setup the sec PWM
         //
+#if CLLLC_SECONDARY_ENABLED == 1
         CLLLC_HAL_setupHRPWMinUpDownCountModeWithDeadBand(
                                    CLLLC_SEC_LEG1_PWM_BASE,
                                    CLLLC_NOMINAL_PWM_SWITCHING_FREQUENCY_HZ,
@@ -1812,6 +1839,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
                                    CLLLC_PWMSYSCLOCK_FREQ_HZ,
                                    CLLLC_PRIM_PWM_DEADBAND_RED_NS,
                                    CLLLC_PRIM_PWM_DEADBAND_FED_NS);
+#endif
 
         //
         // setup phase shift behavior
@@ -1826,6 +1854,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
         EPWM_enableSyncOutPulseSource(CLLLC_PRIM_LEG1_PWM_BASE,
                                       EPWM_SYNC_OUT_PULSE_ON_CNTR_ZERO);
 
+#if CLLLC_SECONDARY_ENABLED == 1
         EPWM_enablePhaseShiftLoad(CLLLC_SEC_LEG1_PWM_BASE);
 
         //
@@ -1852,7 +1881,8 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
         EPWM_setPhaseShift(CLLLC_SEC_LEG2_PWM_BASE, 2 );
 
         EPWM_setCountModeAfterSync(CLLLC_SEC_LEG2_PWM_BASE,
-                              EPWM_COUNT_MODE_UP_AFTER_SYNC);
+                               EPWM_COUNT_MODE_UP_AFTER_SYNC);
+#endif
 
 
 
@@ -1864,8 +1894,10 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
               (HWREGH(CLLLC_PRIM_LEG2_PWM_BASE + EPWM_O_DBCTL) | 0x3000);
 
 
+#if CLLLC_SECONDARY_ENABLED == 1
         HWREGH(CLLLC_SEC_LEG2_PWM_BASE + EPWM_O_DBCTL) =
               (HWREGH(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_DBCTL) | 0x3000);
+#endif
 
     }
 
@@ -1878,6 +1910,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
                       EPWM_LINK_WITH_EPWM_1,
                       EPWM_LINK_TBPRD);
 
+#if CLLLC_SECONDARY_ENABLED == 1
     EPWM_setupEPWMLinks(CLLLC_SEC_LEG1_PWM_BASE,
                       EPWM_LINK_WITH_EPWM_1,
                       EPWM_LINK_TBPRD);
@@ -1885,6 +1918,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
     EPWM_setupEPWMLinks(CLLLC_SEC_LEG2_PWM_BASE,
                       EPWM_LINK_WITH_EPWM_1,
                       EPWM_LINK_TBPRD);
+#endif
 
     //
     // Now setup the PWM link for CMPA between PRIM LEG1 & 2
@@ -1906,6 +1940,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
     // Now setup the PWM link for CMPA between SEC LEG1 & 2
     //
 
+#if CLLLC_SECONDARY_ENABLED == 1
     EPWM_setupEPWMLinks(CLLLC_SEC_LEG2_PWM_BASE,
                       EPWM_LINK_WITH_EPWM_3,
                       EPWM_LINK_COMP_A);
@@ -1916,6 +1951,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
     EPWM_setupEPWMLinks(CLLLC_SEC_LEG2_PWM_BASE,
                       EPWM_LINK_WITH_EPWM_3,
                       EPWM_LINK_COMP_B);
+#endif
 
     //
     // Now setup the PWM link for GLDCTL2 between PRIM LEG1/2 & SEC LEG1 & 2
@@ -1925,6 +1961,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
                       EPWM_LINK_WITH_EPWM_1,
                       EPWM_LINK_GLDCTL2);
 
+#if CLLLC_SECONDARY_ENABLED == 1
     EPWM_setupEPWMLinks(CLLLC_SEC_LEG1_PWM_BASE,
                      EPWM_LINK_WITH_EPWM_1,
                      EPWM_LINK_GLDCTL2);
@@ -1932,6 +1969,7 @@ void CLLLC_HAL_setupPWM(uint16_t powerFlowDir)
     EPWM_setupEPWMLinks(CLLLC_SEC_LEG2_PWM_BASE,
                      EPWM_LINK_WITH_EPWM_1,
                      EPWM_LINK_GLDCTL2);
+#endif
 #endif
 
     //

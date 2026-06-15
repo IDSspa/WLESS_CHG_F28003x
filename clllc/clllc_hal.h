@@ -212,7 +212,11 @@ static inline void CLLLC_setCommutatorLC(uint16_t statusLC)
 #pragma FUNC_ALWAYS_INLINE(CLLLC_readSecSenseDiag)
 static inline uint32_t CLLLC_readSecSenseDiag()
 {
+#if CLLLC_SECONDARY_ENABLED == 1
     return GPIO_readPin(CLLLC_GPIO_SECSENSEDIAG);
+#else
+    return 0U;
+#endif
 }
 
 #pragma FUNC_ALWAYS_INLINE(CLLLC_HAL_readTripFlags)
@@ -226,6 +230,7 @@ static inline int16_t CLLLC_HAL_readTripFlags(void)
         XBAR_clearInputFlag(CLLLC_IPRIM_CMPSS_XBAR_FLAG1);
         XBAR_clearInputFlag(CLLLC_IPRIM_CMPSS_XBAR_FLAG2);
     }
+#if CLLLC_SECONDARY_ENABLED == 1
     else if(XBAR_getInputFlagStatus(CLLLC_ISEC_CMPSS_XBAR_FLAG1) == 1 ||
             XBAR_getInputFlagStatus(CLLLC_ISEC_CMPSS_XBAR_FLAG2) == 1)
     {
@@ -238,6 +243,7 @@ static inline int16_t CLLLC_HAL_readTripFlags(void)
         tripIndicator = 4;
         XBAR_clearInputFlag(CLLLC_VSEC_CMPSS_XBAR_FLAG1);
     }
+#endif
     else if(EPWM_getOneShotTripZoneFlagStatus(CLLLC_PRIM_LEG1_PWM_BASE) & 0x2)
     {
         tripIndicator = 6;
@@ -340,6 +346,7 @@ static inline void CLLLC_HAL_updatePWMDutyPeriodPhaseShift(
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_TBPRDHR) = period_ticks;
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPA) = dutyAPrim_ticks;
 
+#if CLLLC_SECONDARY_ENABLED == 1
     HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPA) = dutyASec_ticks;
     HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPB) = dutyBSec_ticks;
 
@@ -355,6 +362,7 @@ static inline void CLLLC_HAL_updatePWMDutyPeriodPhaseShift(
                           (EPWM_SyncCountMode)phaseShiftSecLegs_direction);
     EPWM_setCountModeAfterSync(CLLLC_SEC_LEG2_PWM_BASE,
                           (EPWM_SyncCountMode)phaseShiftSecLegs_direction);
+#endif
 }
 
 #pragma FUNC_ALWAYS_INLINE(CLLLC_HAL_updatePWMDutyPeriodPhaseShift_PhaseShiftMode)
@@ -372,11 +380,13 @@ static inline void CLLLC_HAL_updatePWMDutyPeriodPhaseShift_PhaseShiftMode(
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPA) = dutyAPrim_ticks;
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPB) = dutyAPrim_ticks;
 
+#if CLLLC_SECONDARY_ENABLED == 1
     HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPA) = dutyASec_ticks;
     HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPB) = dutyBSec_ticks;
 
     HWREG(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_TBPHS) = phaseShiftPrimSec_ticks;
     HWREG(CLLLC_SEC_LEG2_PWM_BASE + EPWM_O_TBPHS) = phaseShiftPrimSec_ticks;
+#endif
 
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_TBPHS) = phaseShiftPrimLegs_ticks;
     HWREG(CLLLC_PRIM_LEG2_PWM_BASE + HRPWM_O_TBPHS) = phaseShiftPrimLegs_ticks;
@@ -576,7 +586,7 @@ static inline void CLLLC_HAL_setupInterrupt(uint16_t powerFlow)
     CPUTimer_enableInterrupt(CLLLC_ISR3_TIMEBASE);
     CPUTimer_clearOverflowFlag(CLLLC_ISR3_TIMEBASE);
     ADC_setInterruptSource(CLLLC_ISR3_PERIPHERAL_TRIG_BASE,
-                           ADC_INT_NUMBER2, CLLLC_VSEC_ADC_SOC_NO_13);
+                           ADC_INT_NUMBER2, CLLLC_VPRIM_ADC_SOC_NO_ISR3);
     ADC_enableInterrupt(CLLLC_ISR3_PERIPHERAL_TRIG_BASE, ADC_INT_NUMBER2);
     ADC_enableContinuousMode(CLLLC_ISR3_PERIPHERAL_TRIG_BASE, ADC_INT_NUMBER2);
     ADC_clearInterruptStatus(CLLLC_ISR3_PERIPHERAL_TRIG_BASE, ADC_INT_NUMBER2);

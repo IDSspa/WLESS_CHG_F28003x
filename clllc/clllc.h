@@ -489,9 +489,13 @@ static inline void CLLLC_readSensedSignalsPrimToSecPowerFlow(void)
                    - CLLLC_iPrimSensedOffset_pu) * -2.0f;
 #endif
 
+#if CLLLC_SECONDARY_ENABLED == 1
     CLLLC_iSecSensed_pu =  ((float32_t)CLLLC_ISEC_OVERSAMPLE_ADCREAD *
                                        CLLLC_ADC_PU_SCALE_FACTOR
                    - CLLLC_iSecSensedOffset_pu) * 2.0f;
+#else
+    CLLLC_iSecSensed_pu = 0.0f;
+#endif
 
 #if CLLLC_STANDALONE_MODULE == 1
 
@@ -500,12 +504,16 @@ static inline void CLLLC_readSensedSignalsPrimToSecPowerFlow(void)
                    - CLLLC_vPrimSensedOffset_pu);
 #endif
 
+#if CLLLC_SECONDARY_ENABLED == 1
     CLLLC_vSecSensed_pu =  ( (float32_t)CLLLC_VSEC_OVERSAMPLE_ADCREAD *
                                         CLLLC_ADC_PU_SCALE_FACTOR
                    - CLLLC_vSecSensedOffset_pu);
 
     CLLLC_vSecSensed_pu = CLLLC_vSecSensed_pu *
                   (CLLLC_VSEC_MAX_SENSE_VOLTS / CLLLC_VSEC_OPTIMAL_RANGE_VOLTS);
+#else
+    CLLLC_vSecSensed_pu = 0.0f;
+#endif
 
     CLLLC_iSecSensed_pu = (CLLLC_iSecSensed_pu *
                            CLLLC_iSecSensedCalXvariable_pu) +
@@ -522,18 +530,26 @@ static inline void CLLLC_readSensedSignalsSecToPrimPowerFlow(void)
                                        CLLLC_ADC_PU_SCALE_FACTOR
                    - CLLLC_iPrimSensedOffset_pu) * -2.0f;
 
+#if CLLLC_SECONDARY_ENABLED == 1
     CLLLC_iSecSensed_pu =  ((float32_t)CLLLC_ISEC_ADCREAD *
                                        CLLLC_ADC_PU_SCALE_FACTOR
                    - CLLLC_iSecSensedOffset_pu) * 2.0f;
+#else
+    CLLLC_iSecSensed_pu = 0.0f;
+#endif
 //    CLLLC_vPrimSensed_pu = ((float32_t)CLLLC_VPRIM_OVERSAMPLE_ADCREAD *
 //                                       CLLLC_ADC_PU_SCALE_FACTOR
 //                   - CLLLC_vPrimSensedOffset_pu);
+#if CLLLC_SECONDARY_ENABLED == 1
     CLLLC_vSecSensed_pu =  ( (float32_t)CLLLC_VSEC_ADCREAD *
                                         CLLLC_ADC_PU_SCALE_FACTOR
                    - CLLLC_vSecSensedOffset_pu);
 
     CLLLC_vSecSensed_pu = CLLLC_vSecSensed_pu *
                   (CLLLC_VSEC_MAX_SENSE_VOLTS / CLLLC_VSEC_OPTIMAL_RANGE_VOLTS);
+#else
+    CLLLC_vSecSensed_pu = 0.0f;
+#endif
 
     CLLLC_iSecSensed_pu = (CLLLC_iSecSensed_pu *
                            CLLLC_iSecSensedCalXvariable_pu) +
@@ -670,8 +686,10 @@ static inline void CLLLC_calculatePWMDutyPeriodPhaseShiftTicks_primToSecPowerFlo
         HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPA) = CLLLC_pwmDutyAPrim_ticks;
         HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPB) = CLLLC_pwmDutyBPrim_ticks;
 
+#if CLLLC_SECONDARY_ENABLED == 1
         HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPA) = CLLLC_pwmDutyASec_ticks;
         HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPB) = CLLLC_pwmDutyBSec_ticks;
+#endif
 #endif
 
 }
@@ -890,8 +908,10 @@ static inline void CLLLC_calculatePWMDutyPeriodPhaseShiftTicks_primToSecPowerFlo
         HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPA) = CLLLC_pwmDutyAPrim_ticks;
         HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPB) = CLLLC_pwmDutyBPrim_ticks;
 
+#if CLLLC_SECONDARY_ENABLED == 1
         HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPA) = CLLLC_pwmDutyASec_ticks;
         HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPB) = CLLLC_pwmDutyBSec_ticks;
+#endif
 #endif
 
 
@@ -1012,8 +1032,10 @@ static inline void CLLLC_calculatePWMDutyPeriodPhaseShiftTicks_primToSecPowerFlo
         HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPA) = CLLLC_pwmDutyAPrim_ticks;
         HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPB) = CLLLC_pwmDutyBPrim_ticks;
 
+#if CLLLC_SECONDARY_ENABLED == 1
         HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPA) = CLLLC_pwmDutyASec_ticks;
         HWREG(CLLLC_SEC_LEG1_PWM_BASE + HRPWM_O_CMPB) = CLLLC_pwmDutyBSec_ticks;
+#endif
 #endif
 
 }
@@ -1130,8 +1152,10 @@ static inline void CLLLC_runISR1(void)
     EALLOW;
 //    HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPA) = CLLLC_pwmDutyAPrim_ticks;
 //    HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_CMPB) = CLLLC_pwmDutyAPrim_ticks;
+#if CLLLC_SECONDARY_ENABLED == 1
     HWREG(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_TBPHS) =  CLLLC_pwmPhaseShiftPrimSec_ticks;
     HWREG(CLLLC_SEC_LEG2_PWM_BASE + EPWM_O_TBPHS) =  CLLLC_pwmPhaseShiftPrimSec_ticks;
+#endif
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + EPWM_O_GLDCTL2) =  1;
   //  EPWM_setGlobalLoadOneShotLatch(CLLLC_PRIM_LEG1_PWM_BASE);
     EDIS;
@@ -1180,8 +1204,10 @@ static inline void CLLLC_runISR1_phaseShift(void)
                                                            CLLLC_pwmPhaseShiftPrimLegs_countDirection);
 #else
     HWREG(CLLLC_PRIM_LEG1_PWM_BASE + EPWM_O_TBPHS) =  CLLLC_pwmPhaseShiftPrimLegs_ticks;
+#if CLLLC_SECONDARY_ENABLED == 1
     HWREG(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_TBPHS) =  CLLLC_pwmPhaseShiftPrimSec_ticks;
     HWREG(CLLLC_SEC_LEG2_PWM_BASE + EPWM_O_TBPHS) =  CLLLC_pwmPhaseShiftPrimSec_ticks;
+#endif
     EPWM_setCountModeAfterSync(CLLLC_PRIM_LEG2_PWM_BASE,
                             (EPWM_SyncCountMode)CLLLC_pwmPhaseShiftPrimLegs_countDirection);
     EPWM_setGlobalLoadOneShotLatch(CLLLC_PRIM_LEG1_PWM_BASE);
@@ -1207,7 +1233,7 @@ static inline void CLLLC_clearPWMTrip(void)
         //
         CLLLC_HAL_clearPWMTripFlags(CLLLC_PRIM_LEG1_PWM_BASE);
         CLLLC_HAL_clearPWMTripFlags(CLLLC_PRIM_LEG2_PWM_BASE);
-        #if(CLLLC_ASR_ENABLE == 1)
+        #if CLLLC_SECONDARY_ENABLED == 1 && CLLLC_ASR_ENABLE == 1
                 CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG1_PWM_BASE);
                 CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG2_PWM_BASE);
         #endif
@@ -1603,8 +1629,10 @@ static inline void CLLLC_runISR2_primToSecPowerFlow(void)
     {
         CLLLC_HAL_clearPWMTripFlags(CLLLC_PRIM_LEG1_PWM_BASE);
         CLLLC_HAL_clearPWMTripFlags(CLLLC_PRIM_LEG2_PWM_BASE);
+#if CLLLC_SECONDARY_ENABLED == 1
         CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG1_PWM_BASE);
         CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG2_PWM_BASE);
+#endif
 
         #if CLLLC_TEST_SETUP == CLLLC_TEST_SETUP_EMULATED_BATTERY
             CLLLC_closeGiLoop = 1;
@@ -1823,8 +1851,10 @@ static inline void CLLLC_runISR2_secToPrimPowerFlow(void)
     {
         CLLLC_HAL_clearPWMTripFlags(CLLLC_PRIM_LEG1_PWM_BASE);
         CLLLC_HAL_clearPWMTripFlags(CLLLC_PRIM_LEG2_PWM_BASE);
+#if CLLLC_SECONDARY_ENABLED == 1
         CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG1_PWM_BASE);
         CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG2_PWM_BASE);
+#endif
 
         CLLLC_clearTrip = 0;
     }

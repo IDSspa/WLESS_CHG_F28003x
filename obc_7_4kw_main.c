@@ -419,7 +419,9 @@ void A1(void)
     CLLLC_runSFRABackGroundTasks();
 #endif
 
+#if CLLLC_SECONDARY_ENABLED == 1
     CLLLC_changeSynchronousRectifierPwmBehavior(CLLLC_POWER_FLOW);
+#endif
 
     //
     //the next time CpuTimer0 'counter' reaches Period value go to A2

@@ -98,6 +98,7 @@ void OBC_7_4KW_enablePWMClkCounting()
 
 void OBC_7_4KW_setupActiveSyncRectCLLLC()
 {
+#if CLLLC_SECONDARY_ENABLED == 1
     //
     // setup CMPSS for synchRect
     //
@@ -109,6 +110,7 @@ void OBC_7_4KW_setupActiveSyncRectCLLLC()
     //
     CLLLC_HAL_setupSynchronousRectificationActionDebug(
             CLLLC_powerFlowStateActive.CLLLC_PowerFlowState_Enum);
+#endif
 }
 
 void OBC_7_4KW_setupAEF()

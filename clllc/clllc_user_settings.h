@@ -48,6 +48,12 @@
 #define CLLLC_ASR_ENABLE 1
 
 //
+// Original CLLLC transformer secondary hardware.
+// The wireless charger only uses the original primary full bridge.
+//
+#define CLLLC_SECONDARY_ENABLED 0
+
+//
 //Transformer polarity setting
 //0 = positive polarity, 1 = negative polarity
 //
@@ -126,8 +132,8 @@
 #define CLLLC_ISR2_TRIG_CLA CLA_TRIGGER_ECAP1INT
 
 #define CLLLC_ISR3_TIMEBASE CLLLC_TASKC_CPUTIMER_BASE
-#define CLLLC_ISR3_PERIPHERAL_TRIG_BASE ADCC_BASE
-#define CLLLC_ISR3_TRIG INT_ADCC2
+#define CLLLC_ISR3_PERIPHERAL_TRIG_BASE ADCB_BASE
+#define CLLLC_ISR3_TRIG INT_ADCB2
 #define CLLLC_ISR3_PIE_GROUP INTERRUPT_ACK_GROUP10
 //
 // Compensator related
@@ -221,6 +227,7 @@
 #define CLLLC_VPRIM_ADC_SOC_NO_2        ADC_SOC_NUMBER3
 #define CLLLC_VPRIM_ADC_SOC_NO_3        ADC_SOC_NUMBER4
 #define CLLLC_VPRIM_ADC_SOC_NO_4        ADC_SOC_NUMBER5
+#define CLLLC_VPRIM_ADC_SOC_NO_ISR3      ADC_SOC_NUMBER15
 
 #define CLLLC_VPRIM_ADCREAD_1 ADC_readResult(CLLLC_VPRIM_ADCRESULTREGBASE, CLLLC_VPRIM_ADC_SOC_NO_1)
 #define CLLLC_VPRIM_ADCREAD_2 ADC_readResult(CLLLC_VPRIM_ADCRESULTREGBASE, CLLLC_VPRIM_ADC_SOC_NO_2)
