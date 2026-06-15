@@ -370,6 +370,77 @@ void CLLLC_HAL_setupADC(void)
 
 }
 
+//
+// Setup PWM3 synchronized with PWM1 at 90 degree phase shift
+//
+void CLLLC_HAL_setupPWM3_Sync90DegToPWM1(void)
+{
+    uint16_t pwmPeriodTicks;
+    uint16_t phaseShift90Deg;
+
+    //
+    // PWM1 and PWM3 use up-down count mode. The complete PWM period is twice
+    // TBPRD, therefore a 90-degree shift is half of TBPRD.
+    //
+    pwmPeriodTicks = TICKS_IN_PWM_FREQUENCY(
+            CLLLC_NOMINAL_PWM_SWITCHING_FREQUENCY_HZ,
+            CLLLC_PWMSYSCLOCK_FREQ_HZ);
+    phaseShift90Deg = pwmPeriodTicks >> 2;
+
+    //
+    // Setup PWM3 basic configuration (same mode as PWM1).
+    //
+    EPWM_setPeriodLoadMode(CLLLC_SEC_LEG1_PWM_BASE, EPWM_PERIOD_DIRECT_LOAD);
+    EPWM_setTimeBasePeriod(CLLLC_SEC_LEG1_PWM_BASE, pwmPeriodTicks >> 1);
+    EPWM_setTimeBaseCounter(CLLLC_SEC_LEG1_PWM_BASE, 0);
+    EPWM_setTimeBaseCounterMode(CLLLC_SEC_LEG1_PWM_BASE,
+                                EPWM_COUNTER_MODE_UP_DOWN);
+    EPWM_setClockPrescaler(CLLLC_SEC_LEG1_PWM_BASE, EPWM_CLOCK_DIVIDER_1,
+                          EPWM_HSCLOCK_DIVIDER_1);
+
+    //
+    // Generate an initial 50-percent duty waveform, matching PWM1.
+    //
+    EPWM_setCounterCompareValue(CLLLC_SEC_LEG1_PWM_BASE,
+                                EPWM_COUNTER_COMPARE_A,
+                                pwmPeriodTicks >> 2);
+    EPWM_setCounterCompareShadowLoadMode(CLLLC_SEC_LEG1_PWM_BASE,
+                                        EPWM_COUNTER_COMPARE_A,
+                                        EPWM_COMP_LOAD_ON_CNTR_ZERO_PERIOD);
+
+    //
+    // PWM1 is the synchronization master; PWM3 loads the quarter-period
+    // phase shift on every PWM1 zero event.
+    //
+    EPWM_enableSyncOutPulseSource(CLLLC_PRIM_LEG1_PWM_BASE,
+                                  EPWM_SYNC_OUT_PULSE_ON_CNTR_ZERO);
+    EPWM_enablePhaseShiftLoad(CLLLC_SEC_LEG1_PWM_BASE);
+    EPWM_setSyncInPulseSource(CLLLC_SEC_LEG1_PWM_BASE,
+                              EPWM_SYNC_IN_PULSE_SRC_SYNCOUT_EPWM1);
+    EPWM_setPhaseShift(CLLLC_SEC_LEG1_PWM_BASE, phaseShift90Deg);
+    EPWM_setCountModeAfterSync(CLLLC_SEC_LEG1_PWM_BASE,
+                               EPWM_COUNT_MODE_UP_AFTER_SYNC);
+
+    //
+    // Match PWM1A output behavior.
+    //
+    HWREGH(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_AQCTLA) = 0;
+    EPWM_setActionQualifierAction(CLLLC_SEC_LEG1_PWM_BASE,
+                                  EPWM_AQ_OUTPUT_A,
+                                  EPWM_AQ_OUTPUT_HIGH,
+                                  EPWM_AQ_OUTPUT_ON_TIMEBASE_UP_CMPA);
+    EPWM_setActionQualifierAction(CLLLC_SEC_LEG1_PWM_BASE,
+                                  EPWM_AQ_OUTPUT_A,
+                                  EPWM_AQ_OUTPUT_LOW,
+                                  EPWM_AQ_OUTPUT_ON_TIMEBASE_DOWN_CMPA);
+
+    //
+    // PWM3 is no longer an ADC trigger source for the transformer secondary.
+    //
+    EPWM_disableADCTrigger(CLLLC_SEC_LEG1_PWM_BASE, EPWM_SOC_A);
+    EPWM_disableADCTrigger(CLLLC_SEC_LEG1_PWM_BASE, EPWM_SOC_B);
+}
+
 void CLLLC_HAL_setupIprimSensedSignalChain(void)
 {
 }
@@ -1624,6 +1695,19 @@ void CLLLC_HAL_setupPWMpins(uint16_t mode)
         GPIO_setPinConfig(CLLLC_SEC_LEG2_PWM_H_GPIO_PIN_CONFIG );
     }
     #endif
+
+#if CLLLC_PWM3_SYNC90_ENABLED == 1
+    //
+    // PWM3A is repurposed for the wireless converter. Keep PWM3B and PWM4
+    // disabled with the original secondary, and honor mode 0 as the safe state.
+    //
+    if(mode != 0)
+    {
+        GPIO_setDirectionMode(CLLLC_SEC_LEG1_PWM_H_GPIO, GPIO_DIR_MODE_OUT);
+        GPIO_setPadConfig(CLLLC_SEC_LEG1_PWM_H_GPIO, GPIO_PIN_TYPE_STD);
+        GPIO_setPinConfig(CLLLC_SEC_LEG1_PWM_H_GPIO_PIN_CONFIG);
+    }
+#endif
 }
 
 

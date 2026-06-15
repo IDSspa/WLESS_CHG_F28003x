@@ -144,6 +144,14 @@ void OBC_7_4KW_setupPWM()
     //
     CLLLC_HAL_setupPWM(CLLLC_powerFlowStateActive.CLLLC_PowerFlowState_Enum);
 
+#if CLLLC_PWM3_SYNC90_ENABLED == 1
+    //
+    // PWM3A is reused as a wireless-converter signal synchronized 90 degrees
+    // after PWM1A. It must not generate ADC triggers for the old secondary.
+    //
+    CLLLC_HAL_setupPWM3_Sync90DegToPWM1();
+#endif
+
     EALLOW;
 
     //

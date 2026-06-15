@@ -54,6 +54,12 @@
 #define CLLLC_SECONDARY_ENABLED 0
 
 //
+// Reuse PWM3A as a wireless-converter timing signal synchronized 90 degrees
+// after PWM1. PWM3B and PWM4 remain disabled with the original secondary.
+//
+#define CLLLC_PWM3_SYNC90_ENABLED 1
+
+//
 //Transformer polarity setting
 //0 = positive polarity, 1 = negative polarity
 //

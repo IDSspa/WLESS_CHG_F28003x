@@ -91,6 +91,7 @@ void CLLLC_HAL_setupECAPforDutyCapture(uint32_t base);
 void CLLLC_HAL_setupPWMpins(uint16_t mode);
 void CLLLC_HAL_setupCLA(void);
 void CLLLC_HAL_setupPWM(uint16_t powerFlow);
+void CLLLC_HAL_setupPWM3_Sync90DegToPWM1(void);
 void CLLLC_HAL_setupCMPSSHighLimit(uint32_t base1,
                                    float32_t currentLimit,
                                    float32_t currentMaxSense,
