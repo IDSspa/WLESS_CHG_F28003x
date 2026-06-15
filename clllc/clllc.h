@@ -492,7 +492,7 @@ static inline void CLLLC_readPrimaryTankMagnitudeAndPhase(void)
             (float32_t)CLLLC_iPrimTankModSensedRaw *
             CLLLC_ADC_PU_SCALE_FACTOR;
     CLLLC_iPrimTankPhsSensed_pu =
-            (float32_t)CLLLLC_iPrimTankPhsSensedRaw *
+            (float32_t)CLLLC_iPrimTankPhsSensedRaw *
             CLLLC_ADC_PU_SCALE_FACTOR;
 }
 
