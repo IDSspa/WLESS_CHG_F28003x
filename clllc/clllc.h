@@ -345,6 +345,11 @@ extern float32_t CLLLC_iPrimTankSensedCalIntercept_pu;
 extern float32_t CLLLC_iPrimTankSensedCalXvariable_pu;
 extern EMAVG CLLLC_iPrimTankSensedAvg_pu;
 
+extern uint16_t CLLLC_iPrimTankModSensedRaw;
+extern uint16_t CLLLC_iPrimTankPhsSensedRaw;
+extern float32_t CLLLC_iPrimTankModSensed_pu;
+extern float32_t CLLLC_iPrimTankPhsSensed_pu;
+
 extern float32_t CLLLC_vPrimSensed_Volts;
 extern float32_t CLLLC_vPrimSensed_pu;
 extern float32_t CLLLC_vPrimSensedOffset_pu;
@@ -477,9 +482,25 @@ extern int16_t CommsOKflg, SerialCommsTimer;
 //
 // Read Current and Voltage Measurements
 //
+#pragma FUNC_ALWAYS_INLINE(CLLLC_readPrimaryTankMagnitudeAndPhase)
+static inline void CLLLC_readPrimaryTankMagnitudeAndPhase(void)
+{
+    CLLLC_iPrimTankModSensedRaw = CLLLC_IPRIM_TANK_MOD_ADCREAD;
+    CLLLC_iPrimTankPhsSensedRaw = CLLLC_IPRIM_TANK_PHS_ADCREAD;
+
+    CLLLC_iPrimTankModSensed_pu =
+            (float32_t)CLLLC_iPrimTankModSensedRaw *
+            CLLLC_ADC_PU_SCALE_FACTOR;
+    CLLLC_iPrimTankPhsSensed_pu =
+            (float32_t)CLLLLC_iPrimTankPhsSensedRaw *
+            CLLLC_ADC_PU_SCALE_FACTOR;
+}
+
 #pragma FUNC_ALWAYS_INLINE(CLLLC_readSensedSignalsPrimToSecPowerFlow)
 static inline void CLLLC_readSensedSignalsPrimToSecPowerFlow(void)
 {
+    CLLLC_readPrimaryTankMagnitudeAndPhase();
+
     //
     // The below is put under the following tag, as it is not used currently in the combined project
     //
@@ -526,6 +547,8 @@ static inline void CLLLC_readSensedSignalsPrimToSecPowerFlow(void)
 #pragma FUNC_ALWAYS_INLINE(CLLLC_readSensedSignalsSecToPrimPowerFlow)
 static inline void CLLLC_readSensedSignalsSecToPrimPowerFlow(void)
 {
+    CLLLC_readPrimaryTankMagnitudeAndPhase();
+
     CLLLC_iPrimSensed_pu = ((float32_t)CLLLC_IPRIM_ADCREAD *
                                        CLLLC_ADC_PU_SCALE_FACTOR
                    - CLLLC_iPrimSensedOffset_pu) * -2.0f;

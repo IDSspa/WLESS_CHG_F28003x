@@ -235,6 +235,22 @@ void CLLLC_HAL_setupADC(void)
 #endif
 
     //
+    // Wireless primary resonant-current magnitude and phase. Both signals
+    // are sampled from EPWM5 SOCA at the ISR2 rate.
+    //
+    ADC_setupSOC(CLLLC_IPRIM_TANK_MOD_ADC_MODULE,
+                 CLLLC_IPRIM_TANK_MOD_ADC_SOC_NO,
+                 CLLLC_IPRIM_TANK_MOD_ADC_TRIG_SOURCE,
+                 CLLLC_IPRIM_TANK_MOD_ADC_PIN,
+                 CLLLC_IPRIM_TANK_MOD_ADC_ACQPS_SYS_CLKS);
+
+    ADC_setupSOC(CLLLC_IPRIM_TANK_PHS_ADC_MODULE,
+                 CLLLC_IPRIM_TANK_PHS_ADC_SOC_NO,
+                 CLLLC_IPRIM_TANK_PHS_ADC_TRIG_SOURCE,
+                 CLLLC_IPRIM_TANK_PHS_ADC_PIN,
+                 CLLLC_IPRIM_TANK_PHS_ADC_ACQPS_SYS_CLKS);
+
+    //
     //VPRIM
     //
     ADC_setupSOC(CLLLC_VPRIM_ADC_MODULE,

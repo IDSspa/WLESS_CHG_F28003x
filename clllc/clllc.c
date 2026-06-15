@@ -100,6 +100,11 @@ float32_t CLLLC_iPrimTankSensedCalIntercept_pu;
 float32_t CLLLC_iPrimTankSensedCalXvariable_pu;
 EMAVG CLLLC_iPrimTankSensedAvg_pu;
 
+uint16_t CLLLC_iPrimTankModSensedRaw;
+uint16_t CLLLC_iPrimTankPhsSensedRaw;
+float32_t CLLLC_iPrimTankModSensed_pu;
+float32_t CLLLC_iPrimTankPhsSensed_pu;
+
 float32_t CLLLC_vPrimSensed_Volts;
 float32_t CLLLC_vPrimSensed_pu;
 float32_t CLLLC_vPrimSensedOffset_pu;
@@ -423,6 +428,10 @@ void CLLLC_initGlobalVariables(void)
     EMAVG_config(&CLLLC_vSecSensedAvg_pu, 0.01f);
 
     CLLLC_iPrimSensed_Amps = 0;
+    CLLLC_iPrimTankModSensedRaw = 0;
+    CLLLC_iPrimTankPhsSensedRaw = 0;
+    CLLLC_iPrimTankModSensed_pu = 0.0f;
+    CLLLC_iPrimTankPhsSensed_pu = 0.0f;
     CLLLC_vPrimSensed_Volts = 0;
     CLLLC_iSecSensed_Amps = 0;
     CLLLC_vSecSensed_Volts = 0;
