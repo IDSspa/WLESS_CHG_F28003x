@@ -337,16 +337,17 @@ static inline void  CLLLC_HAL_setupSynchronousRectifierTripAction(
 static inline void CLLLC_HAL_updatePWM3Sync90(uint32_t period_ticks)
 {
     uint16_t pwm3PeriodTicks = (uint16_t)(period_ticks >> 16);
-    uint16_t pwm3QuarterPeriodTicks = pwm3PeriodTicks >> 1;
+    uint16_t pwm3HalfPeriodTicks = pwm3PeriodTicks >> 1;
+    uint16_t pwm3PhaseTicks = (uint16_t)(((uint32_t)pwm3PeriodTicks * 31U) >> 6);
 
     //
     // Keep PWM3 at the same frequency as PWM1 and 90 degrees behind it.
     //
     HWREGH(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_TBPRD) = pwm3PeriodTicks;
     HWREGH(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_CMPA) =
-            pwm3QuarterPeriodTicks;
+            pwm3HalfPeriodTicks;
     HWREGH(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_TBPHS) =
-            pwm3QuarterPeriodTicks;
+            pwm3PhaseTicks;
 }
 #endif
 

@@ -1260,6 +1260,10 @@ static inline void CLLLC_clearPWMTrip(void)
                 CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG1_PWM_BASE);
                 CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG2_PWM_BASE);
         #endif
+        #if (CLLLC_PWM3_SYNC90_ENABLED == 1) && \
+            (CLLLC_SECONDARY_ENABLED == 0)
+                CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG1_PWM_BASE);
+        #endif
 
         //
         // In battery emulated test the loop needs to be closed very fast

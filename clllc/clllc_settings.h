@@ -161,7 +161,7 @@ extern "C" {
 // 8 -> Closed loop voltage with resistive load
 //
 
-#define CLLLC_LAB 3
+#define CLLLC_LAB 1
 
 #if CLLLC_LAB == 1
 #define CLLLC_CONTROL_RUNNING_ON CLA_CORE

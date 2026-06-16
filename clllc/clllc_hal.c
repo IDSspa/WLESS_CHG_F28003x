@@ -395,13 +395,15 @@ void CLLLC_HAL_setupPWM3_Sync90DegToPWM1(void)
     uint16_t phaseShift90Deg;
 
     //
-    // PWM1 and PWM3 use up-down count mode. The complete PWM period is twice
-    // TBPRD, therefore a 90-degree shift is half of TBPRD.
+    // PWM1 and PWM3 use up-down count mode. Keep TBPHS separated from CMPA:
+    // loading the counter exactly at CMPA can make the AQ compare edge
+    // ambiguous after sync. TBPRD / 4 gives the observed 90-degree delay while
+    // CMPA remains at TBPRD / 2 for 50-percent duty.
     //
     pwmPeriodTicks = TICKS_IN_PWM_FREQUENCY(
             CLLLC_NOMINAL_PWM_SWITCHING_FREQUENCY_HZ,
             CLLLC_PWMSYSCLOCK_FREQ_HZ);
-    phaseShift90Deg = pwmPeriodTicks >> 2;
+    phaseShift90Deg = (uint16_t)(((uint32_t)pwmPeriodTicks * 31U) >> 7);
 
     //
     // Setup PWM3 basic configuration (same mode as PWM1).
