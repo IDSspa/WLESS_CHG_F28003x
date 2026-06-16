@@ -20,4 +20,6 @@ encoding//RELEASE/subdir_rules.mk=UTF-8
 encoding//RELEASE/subdir_vars.mk=UTF-8
 encoding//RELEASE/ttplpfc/subdir_rules.mk=UTF-8
 encoding//RELEASE/ttplpfc/subdir_vars.mk=UTF-8
+encoding//RELEASE/unipd/subdir_rules.mk=UTF-8
+encoding//RELEASE/unipd/subdir_vars.mk=UTF-8
 encoding/<project>=UTF-8

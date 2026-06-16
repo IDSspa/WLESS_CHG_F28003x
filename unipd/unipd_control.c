@@ -1,4 +1,6 @@
 #include "unipd_control.h"
+#include "clllc.h"
+#include "ttplpfc.h"
 
 #define UNIPD_V_BAT_MAX_ALG        (218.0f)
 #define UNIPD_V_BAT_MIN_ALG        (37.5f)
@@ -29,6 +31,11 @@
 static UNIPD_DcBusControlState unipd_dc_bus_state;
 static UNIPD_RemoteCoilLimitControlState unipd_remote_coil_limit_state;
 static UNIPD_DcBusCoilControlState unipd_dc_bus_coil_state;
+
+UNIPD_BbcIntegrationInputs UNIPD_bbcInputs;
+UNIPD_DcBusCoilControlOutput UNIPD_bbcOutput;
+unsigned int UNIPD_bbcSignalValidMask;
+unsigned int UNIPD_bbcSignalMissingMask = UNIPD_BBC_REQUIRED_SIGNAL_MASK;
 
 static const float unipd_arcsin_table[101] = {
     0.000000000000000f, 0.003183151915873f, 0.006366622213270f, 0.009550729560432f,
@@ -70,6 +77,21 @@ static float unipd_clampf(float value, float min_value, float max_value)
         value = min_value;
     }
     return value;
+}
+
+static void unipd_clearDcBusCoilOutput(UNIPD_DcBusCoilControlOutput *output)
+{
+    output->i_coil_loc_err = 0.0f;
+    output->duty_cycle_pwm_a = 0.0f;
+    output->duty_cycle_pwm_b = 0.0f;
+    output->abilita_pwm = 0U;
+    output->duty_cycle_ps_a = 0.5f;
+    output->duty_cycle_ps_b = 0.5f;
+    output->abilita_ps = 0U;
+    output->p_bat_rif = 0.0f;
+    output->i_l_rif_a = 0.0f;
+    output->i_l_rif_b = 0.0f;
+    output->v_ac_rif = 0.0f;
 }
 
 static float unipd_arcsin_over_pi_interpolated(float argument)
@@ -397,40 +419,94 @@ void UNIPD_controlDcBusAndCoilCurrent(UNIPD_DcBusCoilControlState *state,
     }
 }
 
+void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input)
+{
+    input->v_dc = 0.0f;
+    input->v_bat = 0.0f;
+    input->i_l_a = 0.0f;
+    input->i_l_b = 0.0f;
+    input->i_coil_loc = 0.0f;
+    input->i_coil_rem_err = 0.0f;
+    input->i_coil_loc_rif = 0.0f;
+    input->v_dc_pbat_rif = 0.0f;
+    input->i_bat_rif_max = 0.0f;
+    input->i_bat_rif_min = 0.0f;
+    input->tx_1_rx_0 = 0U;
+    input->valid_mask = 0U;
+
+    /*
+     * These reads currently use the existing ADC result registers. The final
+     * control entry point should be moved to an ADC-EOC ISR once the complete
+     * synchronized conversion burst has been defined.
+     */
+    TTPLPFC_read_individualCurrent();
+    TTPLPFC_read_busVoltage();
+    CLLLC_readPrimaryTankMagnitudeAndPhase();
+
+    input->v_dc = TTPLPFC_vBus_sensed_pu * TTPLPFC_VDCBUS_MAX_SENSE;
+    input->i_l_a = TTPLPFC_iL1_sensed_pu * TTPLPFC_IL_MAX_SENSE;
+    input->i_l_b = TTPLPFC_iL2_sensed_pu * TTPLPFC_IL_MAX_SENSE;
+    input->i_coil_loc =
+            CLLLC_iPrimTankModSensed_pu * CLLLC_IPRIM_TANK_MAX_SENSE_AMPS;
+
+    input->valid_mask |= UNIPD_BBC_SIGNAL_V_DC |
+                         UNIPD_BBC_SIGNAL_I_L_A |
+                         UNIPD_BBC_SIGNAL_I_L_B |
+                         UNIPD_BBC_SIGNAL_I_COIL_LOC;
+}
+
+void OBC_7_4KW_runUnipdBbcControl(void)
+{
+    UNIPD_collectBbcIntegrationInputs(&UNIPD_bbcInputs);
+
+    UNIPD_bbcSignalValidMask = UNIPD_bbcInputs.valid_mask;
+    UNIPD_bbcSignalMissingMask =
+            UNIPD_BBC_REQUIRED_SIGNAL_MASK & ~UNIPD_bbcSignalValidMask;
+
+    if(UNIPD_bbcSignalMissingMask == 0U)
+    {
+        UNIPD_controlDcBusAndCoilCurrent(&unipd_dc_bus_coil_state,
+                                         UNIPD_bbcInputs.i_coil_loc_rif,
+                                         UNIPD_bbcInputs.i_coil_loc,
+                                         UNIPD_bbcInputs.i_coil_rem_err,
+                                         UNIPD_bbcInputs.v_dc_pbat_rif,
+                                         UNIPD_bbcInputs.v_dc,
+                                         UNIPD_bbcInputs.v_bat,
+                                         UNIPD_bbcInputs.i_l_a,
+                                         UNIPD_bbcInputs.i_l_b,
+                                         UNIPD_bbcInputs.i_bat_rif_max,
+                                         UNIPD_bbcInputs.i_bat_rif_min,
+                                         UNIPD_bbcInputs.tx_1_rx_0,
+                                         &UNIPD_bbcOutput);
+    }
+    else
+    {
+        UNIPD_resetDcBusCoilControl(&unipd_dc_bus_coil_state);
+        unipd_clearDcBusCoilOutput(&UNIPD_bbcOutput);
+    }
+
+#if UNIPD_BBC_ENABLE_POWER_OUTPUTS
+    if((UNIPD_bbcSignalMissingMask == 0U) &&
+       (UNIPD_bbcOutput.abilita_pwm != 0U))
+    {
+        TTPLPFC_BBC_setMode(UNIPD_bbcInputs.tx_1_rx_0 != 0U ?
+                            TTPLPFC_BBC_MODE_BOOST :
+                            TTPLPFC_BBC_MODE_BUCK);
+        TTPLPFC_BBC_setDuty(UNIPD_bbcOutput.duty_cycle_pwm_a,
+                            UNIPD_bbcOutput.duty_cycle_pwm_b);
+        TTPLPFC_BBC_enable();
+    }
+    else
+#endif
+    {
+        TTPLPFC_BBC_setMode(TTPLPFC_BBC_MODE_DISABLED);
+        TTPLPFC_BBC_disable();
+    }
+}
+
 void OBC_7_4KW_runUnipdControlHooks(void)
 {
 #if UNIPD_CONTROL_ENABLE_RUNTIME_HOOK
-    UNIPD_DcBusCoilControlOutput output;
-
-    /*
-     * Integration point for the translated MATLAB routines. The combined routine
-     * Controllo_tensione_bus_dc_corrente_bobina.m is the normal single-call
-     * candidate for this project. If only one loop is needed, call
-     * UNIPD_controlDcBus() for Controllo_tensione_bus_dc.m or
-     * UNIPD_controlRemoteCoilCurrentAndLocalCoilLimit() for
-     * Controllo_corrente_bobina_Rx_Limitazione_corrente_bobina_Tx.m at this
-     * same location.
-     *
-     * This hook is called from ISR2_primToSecPowerFlow(), after the ADC-backed
-     * converter control routines have run and before the ISR flags are cleared.
-     * Map the arguments below to the project variables that contain:
-     * - local coil current reference and measurement;
-     * - remote coil current error received over the radio link;
-     * - dc-bus reference, dc-bus voltage and battery voltage;
-     * - buck-boost branch currents;
-     * - BMS battery current limits;
-     * - Tx/Rx operating mode.
-     * Then scale output.duty_cycle_pwm_a/b and output.duty_cycle_ps_a/b to the
-     * EPWM compare registers and apply output.abilita_pwm / output.abilita_ps
-     * to the corresponding PWM enable paths.
-     */
-    UNIPD_controlDcBusAndCoilCurrent(&unipd_dc_bus_coil_state,
-                                     0.0f, 0.0f, 0.0f,
-                                     0.0f, 0.0f, 0.0f,
-                                     0.0f, 0.0f,
-                                     0.0f, 0.0f,
-                                     0U,
-                                     &output);
-    (void)output;
+    OBC_7_4KW_runUnipdBbcControl();
 #endif
 }

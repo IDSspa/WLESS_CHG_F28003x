@@ -41,6 +41,7 @@
 #include "obc_7_4kw.h"
 #include "clllc.h"
 #include "ttplpfc.h"
+#include "unipd/unipd_control.h"
 
 //
 //---  State Machine Related ---
@@ -218,7 +219,7 @@ interrupt void ISR2_primToSecPowerFlow(void)
 #endif
 #endif
 #if TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_BBC
-    TTPLPFC_BBC_runControlPlaceholder();
+    OBC_7_4KW_runUnipdBbcControl();
 #elif TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_LEGACY_PFC
 #if TTPLPFC_LAB == 1
     TTPLPFC_runISR1_lab1();

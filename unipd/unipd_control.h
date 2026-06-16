@@ -72,6 +72,52 @@ typedef struct
     float v_ac_rif;
 } UNIPD_DcBusCoilControlOutput;
 
+#define UNIPD_BBC_SIGNAL_V_DC             (1U << 0)
+#define UNIPD_BBC_SIGNAL_V_BAT            (1U << 1)
+#define UNIPD_BBC_SIGNAL_I_L_A            (1U << 2)
+#define UNIPD_BBC_SIGNAL_I_L_B            (1U << 3)
+#define UNIPD_BBC_SIGNAL_I_COIL_LOC       (1U << 4)
+#define UNIPD_BBC_SIGNAL_I_COIL_REM_ERR   (1U << 5)
+#define UNIPD_BBC_SIGNAL_I_COIL_LOC_REF   (1U << 6)
+#define UNIPD_BBC_SIGNAL_V_DC_PBAT_REF    (1U << 7)
+#define UNIPD_BBC_SIGNAL_I_BAT_MAX        (1U << 8)
+#define UNIPD_BBC_SIGNAL_I_BAT_MIN        (1U << 9)
+#define UNIPD_BBC_SIGNAL_TX_RX_MODE       (1U << 10)
+
+#define UNIPD_BBC_REQUIRED_SIGNAL_MASK    \
+    (UNIPD_BBC_SIGNAL_V_DC |              \
+     UNIPD_BBC_SIGNAL_V_BAT |             \
+     UNIPD_BBC_SIGNAL_I_L_A |             \
+     UNIPD_BBC_SIGNAL_I_L_B |             \
+     UNIPD_BBC_SIGNAL_I_COIL_LOC |        \
+     UNIPD_BBC_SIGNAL_I_COIL_REM_ERR |    \
+     UNIPD_BBC_SIGNAL_I_COIL_LOC_REF |    \
+     UNIPD_BBC_SIGNAL_V_DC_PBAT_REF |     \
+     UNIPD_BBC_SIGNAL_I_BAT_MAX |         \
+     UNIPD_BBC_SIGNAL_I_BAT_MIN |         \
+     UNIPD_BBC_SIGNAL_TX_RX_MODE)
+
+typedef struct
+{
+    float v_dc;
+    float v_bat;
+    float i_l_a;
+    float i_l_b;
+    float i_coil_loc;
+    float i_coil_rem_err;
+    float i_coil_loc_rif;
+    float v_dc_pbat_rif;
+    float i_bat_rif_max;
+    float i_bat_rif_min;
+    unsigned int tx_1_rx_0;
+    unsigned int valid_mask;
+} UNIPD_BbcIntegrationInputs;
+
+extern UNIPD_BbcIntegrationInputs UNIPD_bbcInputs;
+extern UNIPD_DcBusCoilControlOutput UNIPD_bbcOutput;
+extern unsigned int UNIPD_bbcSignalValidMask;
+extern unsigned int UNIPD_bbcSignalMissingMask;
+
 void UNIPD_resetDcBusControl(UNIPD_DcBusControlState *state);
 void UNIPD_resetRemoteCoilLimitControl(UNIPD_RemoteCoilLimitControlState *state);
 void UNIPD_resetDcBusCoilControl(UNIPD_DcBusCoilControlState *state);
@@ -118,6 +164,16 @@ void UNIPD_controlDcBusAndCoilCurrent(UNIPD_DcBusCoilControlState *state,
 #define UNIPD_CONTROL_ENABLE_RUNTIME_HOOK 0
 #endif
 
+/*
+ * Keep the power-output application disabled until the ADC synchronization,
+ * BMS/radio data path and gate mapping have been verified on hardware.
+ */
+#ifndef UNIPD_BBC_ENABLE_POWER_OUTPUTS
+#define UNIPD_BBC_ENABLE_POWER_OUTPUTS 0
+#endif
+
+void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input);
+void OBC_7_4KW_runUnipdBbcControl(void);
 void OBC_7_4KW_runUnipdControlHooks(void);
 
 #ifdef __cplusplus
