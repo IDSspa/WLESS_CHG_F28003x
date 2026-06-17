@@ -397,8 +397,8 @@ void CLLLC_HAL_setupPWM3_Sync90DegToPWM1(void)
     //
     // PWM1 and PWM3 use up-down count mode. Keep TBPHS separated from CMPA:
     // loading the counter exactly at CMPA can make the AQ compare edge
-    // ambiguous after sync. TBPRD / 4 gives the observed 90-degree delay while
-    // CMPA remains at TBPRD / 2 for 50-percent duty.
+    // ambiguous after sync. The measured calibration is 31/64 of TBPRD for
+    // the observed 90-degree delay while CMPA remains at TBPRD / 2.
     //
     pwmPeriodTicks = TICKS_IN_PWM_FREQUENCY(
             CLLLC_NOMINAL_PWM_SWITCHING_FREQUENCY_HZ,
@@ -427,8 +427,8 @@ void CLLLC_HAL_setupPWM3_Sync90DegToPWM1(void)
                                         EPWM_COMP_LOAD_ON_CNTR_ZERO_PERIOD);
 
     //
-    // PWM1 is the synchronization master; PWM3 loads the quarter-period
-    // phase shift on every PWM1 zero event.
+    // PWM1 is the synchronization master; PWM3 loads the calibrated phase
+    // shift on every PWM1 zero event.
     //
     EPWM_enableSyncOutPulseSource(CLLLC_PRIM_LEG1_PWM_BASE,
                                   EPWM_SYNC_OUT_PULSE_ON_CNTR_ZERO);

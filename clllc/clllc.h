@@ -1660,6 +1660,10 @@ static inline void CLLLC_runISR2_primToSecPowerFlow(void)
         CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG1_PWM_BASE);
         CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG2_PWM_BASE);
 #endif
+#if (CLLLC_PWM3_SYNC90_ENABLED == 1) && \
+    (CLLLC_SECONDARY_ENABLED == 0)
+        CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG1_PWM_BASE);
+#endif
 
         #if CLLLC_TEST_SETUP == CLLLC_TEST_SETUP_EMULATED_BATTERY
             CLLLC_closeGiLoop = 1;
@@ -1881,6 +1885,10 @@ static inline void CLLLC_runISR2_secToPrimPowerFlow(void)
 #if CLLLC_SECONDARY_ENABLED == 1
         CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG1_PWM_BASE);
         CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG2_PWM_BASE);
+#endif
+#if (CLLLC_PWM3_SYNC90_ENABLED == 1) && \
+    (CLLLC_SECONDARY_ENABLED == 0)
+        CLLLC_HAL_clearPWMTripFlags(CLLLC_SEC_LEG1_PWM_BASE);
 #endif
 
         CLLLC_clearTrip = 0;
