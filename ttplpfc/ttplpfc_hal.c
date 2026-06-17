@@ -752,10 +752,16 @@ void TTPLPFC_HAL_setupPWM(uint16_t pwm_period_ticks,
                                      EPWM_SYNC_OUT_PULSE_ON_CNTR_ZERO);
 #endif
 
-    EPWM_enablePhaseShiftLoad(TTPLPFC_HIGH_FREQ_PWM1_BASE);
-    EPWM_setSyncInPulseSource(TTPLPFC_HIGH_FREQ_PWM1_BASE, TTPLPFC_PWM_SYNC_SOURCE);
-    EPWM_setPhaseShift(TTPLPFC_HIGH_FREQ_PWM1_BASE, 2 );
-    EPWM_setCountModeAfterSync(TTPLPFC_HIGH_FREQ_PWM1_BASE, EPWM_COUNT_MODE_UP_AFTER_SYNC);
+    //
+    // EPWM5 is reserved for the CLLLC ISR2/ADC trigger timebase. Keep the
+    // high-frequency PFC/BBC pair self-contained: EPWM6 is the sync master and
+    // EPWM7 is phase-shifted from EPWM6.
+    //
+    EPWM_disablePhaseShiftLoad(TTPLPFC_HIGH_FREQ_PWM1_BASE);
+    EPWM_setSyncInPulseSource(TTPLPFC_HIGH_FREQ_PWM1_BASE,
+                              EPWM_SYNC_IN_PULSE_SRC_DISABLE);
+    EPWM_enableSyncOutPulseSource(TTPLPFC_HIGH_FREQ_PWM1_BASE,
+                                  EPWM_SYNC_OUT_PULSE_ON_CNTR_ZERO);
 
     #if TTPLPFC_TOTAL_NO_PHASES == 2
         EPWM_enablePhaseShiftLoad(TTPLPFC_HIGH_FREQ_PWM2_BASE);

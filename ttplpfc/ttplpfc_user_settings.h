@@ -158,7 +158,12 @@
 #define TTPLPFC_HIGH_FREQ_PWM3_L_PHASE_SHEDDING_GPIO_PIN_CONFIG      GPIO_15_GPIO15
 #endif
 
-#define TTPLPFC_PWM_SYNC_SOURCE EPWM_SYNC_IN_PULSE_SRC_SYNCOUT_EPWM5
+//
+// EPWM5 is reserved as the CLLLC ISR2/ADC trigger timebase. The PFC low
+// frequency output is disabled, so the high-frequency PFC/BBC legs synchronize
+// from EPWM6 instead of depending on EPWM5.
+//
+#define TTPLPFC_PWM_SYNC_SOURCE EPWM_SYNC_IN_PULSE_SRC_SYNCOUT_EPWM6
 
 // 0 is disabled, 1 is enabled
 //
