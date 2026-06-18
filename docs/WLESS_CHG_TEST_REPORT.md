@@ -279,10 +279,7 @@ Esito: OK.
 Obiettivo:
 Verificare su docking la propagazione di tensioni analogiche note verso `UNIPD_bbcInputs`.
 
-Stato:
-Da eseguire.
-
-Mapping previsto:
+Mapping:
 
 ```text
 i_l_b      -> ADCA2   -> pin 15
@@ -320,6 +317,41 @@ UNIPD_bbcInputs.v_dc       circa 300 V
 UNIPD_bbcInputs.i_coil_loc circa 10 A
 ```
 
+Valori osservati dopo correzione collegamenti:
+
+```text
+UNIPD_bbcInputs.v_dc: 297.570892
+UNIPD_bbcInputs.v_bat: 0.0
+UNIPD_bbcInputs.i_l_a: -1.30764639
+UNIPD_bbcInputs.i_l_b: -2.31448483
+UNIPD_bbcInputs.i_coil_loc: 10.2927551
+UNIPD_bbcInputs.i_coil_rem_err: 0.0
+UNIPD_bbcInputs.i_coil_loc_rif: 0.0
+UNIPD_bbcInputs.v_dc_pbat_rif: 0.0
+UNIPD_bbcInputs.i_bat_rif_max: 0.0
+UNIPD_bbcInputs.i_bat_rif_min: 0.0
+UNIPD_bbcInputs.tx_1_rx_0: 0
+UNIPD_bbcInputs.valid_mask: 29
+
+UNIPD_bbcSignalValidMask: 29
+UNIPD_bbcSignalMissingMask: 2018
+```
+
+Controprova:
+Variando la tensione iniettata sul pin 21 / ADCA5, `UNIPD_bbcInputs.i_coil_loc` passa da circa 10.29 A a:
+
+```text
+UNIPD_bbcInputs.i_coil_loc: 14.8460388
+```
+
+Controllo di non regressione:
+Durante il test analogico, PWM1A/B e PWM2A/B sono risultati stabili e corretti. PWM3 e' risultato coerente e in ritardo di 90 gradi rispetto a PWM1.
+
+Risultato:
+Gli ingressi analogici attualmente mappati verso il wrapper UniPD/BBC propagano correttamente fino a `UNIPD_bbcInputs`. La maschera dei segnali validi resta coerente con i quattro ingressi disponibili.
+
+Esito: OK.
+
 ## Test 11 - Synthetic UniPD Docking Test
 
 Obiettivo:
@@ -327,4 +359,3 @@ Simulare gli input UniPD mancanti tramite variabili modificabili da CCS, portare
 
 Stato:
 Da progettare/eseguire dopo il Test 10.
-
