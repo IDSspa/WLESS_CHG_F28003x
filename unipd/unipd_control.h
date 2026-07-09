@@ -117,6 +117,9 @@ extern UNIPD_BbcIntegrationInputs UNIPD_bbcInputs;
 extern UNIPD_DcBusCoilControlOutput UNIPD_bbcOutput;
 extern unsigned int UNIPD_bbcSignalValidMask;
 extern unsigned int UNIPD_bbcSignalMissingMask;
+extern volatile unsigned int UNIPD_bbcSyntheticTestEnable;
+extern volatile unsigned int UNIPD_bbcSyntheticValidMask;
+extern volatile UNIPD_BbcIntegrationInputs UNIPD_bbcSyntheticInputs;
 
 void UNIPD_resetDcBusControl(UNIPD_DcBusControlState *state);
 void UNIPD_resetRemoteCoilLimitControl(UNIPD_RemoteCoilLimitControlState *state);

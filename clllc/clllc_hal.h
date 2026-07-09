@@ -200,6 +200,7 @@ extern uint16_t Cla1ProgRunSize;
 #pragma FUNC_ALWAYS_INLINE(CLLLC_setCommutatorLC)
 static inline void CLLLC_setCommutatorLC(uint16_t statusLC)
 {
+#ifndef __TMS320C28XX_CLA__
     if(statusLC == 1)
     {
         GPIO_writePin(CLLLC_GPIO_LC, 1);
@@ -208,6 +209,9 @@ static inline void CLLLC_setCommutatorLC(uint16_t statusLC)
     {
         GPIO_writePin(CLLLC_GPIO_LC, 0);
     }
+#else
+    (void)statusLC;
+#endif
 }
 
 #pragma FUNC_ALWAYS_INLINE(CLLLC_readSecSenseDiag)

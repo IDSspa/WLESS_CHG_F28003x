@@ -59,10 +59,46 @@ float32_t CLLLC_gvPartialComputedValue;
 #pragma RETAIN (CLLLC_closeGiLoop)
 #pragma RETAIN (CLLLC_closeGvLoop)
 #pragma RETAIN (CLLLC_clearTrip)
+#pragma RETAIN (CLLLC_hfcReceiverTestEnable)
+#pragma RETAIN (CLLLC_hfcReceiverTestRun)
+#pragma RETAIN (CLLLC_hfcReceiverTestActive)
+#pragma RETAIN (CLLLC_hfcReceiverTestDuty_pu)
+#pragma RETAIN (CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu)
 
 int32_t CLLLC_closeGiLoop;
 int32_t CLLLC_closeGvLoop;
 int32_t CLLLC_clearTrip;
+volatile uint16_t CLLLC_hfcReceiverTestEnable;
+volatile uint16_t CLLLC_hfcReceiverTestRun;
+volatile uint16_t CLLLC_hfcReceiverTestActive;
+volatile float32_t CLLLC_hfcReceiverTestDuty_pu;
+volatile float32_t CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu;
+
+#pragma RETAIN (CLLLC_hfcGanFaultGpioLevel)
+#pragma RETAIN (CLLLC_hfcGanFaultActiveLow)
+#pragma RETAIN (CLLLC_hfcGanFaultXbarFlag)
+#pragma RETAIN (CLLLC_epwm1TzFlgDebug)
+#pragma RETAIN (CLLLC_epwm2TzFlgDebug)
+#pragma RETAIN (CLLLC_epwm3TzFlgDebug)
+#pragma RETAIN (CLLLC_epwm1TzOstFlgDebug)
+#pragma RETAIN (CLLLC_epwm2TzOstFlgDebug)
+#pragma RETAIN (CLLLC_epwm3TzOstFlgDebug)
+#pragma RETAIN (CLLLC_epwm1GanFaultOst2Latched)
+#pragma RETAIN (CLLLC_epwm2GanFaultOst2Latched)
+#pragma RETAIN (CLLLC_epwm3GanFaultOst2Latched)
+
+volatile uint16_t CLLLC_hfcGanFaultGpioLevel;
+volatile uint16_t CLLLC_hfcGanFaultActiveLow;
+volatile uint16_t CLLLC_hfcGanFaultXbarFlag;
+volatile uint16_t CLLLC_epwm1TzFlgDebug;
+volatile uint16_t CLLLC_epwm2TzFlgDebug;
+volatile uint16_t CLLLC_epwm3TzFlgDebug;
+volatile uint16_t CLLLC_epwm1TzOstFlgDebug;
+volatile uint16_t CLLLC_epwm2TzOstFlgDebug;
+volatile uint16_t CLLLC_epwm3TzOstFlgDebug;
+volatile uint16_t CLLLC_epwm1GanFaultOst2Latched;
+volatile uint16_t CLLLC_epwm2GanFaultOst2Latched;
+volatile uint16_t CLLLC_epwm3GanFaultOst2Latched;
 
 
 #pragma RETAIN (CLLLC_pwmFrequency_Hz)
@@ -104,6 +140,8 @@ uint16_t CLLLC_iPrimTankModSensedRaw;
 uint16_t CLLLC_iPrimTankPhsSensedRaw;
 float32_t CLLLC_iPrimTankModSensed_pu;
 float32_t CLLLC_iPrimTankPhsSensed_pu;
+float32_t CLLLC_iPrimTankModSensedOffset_pu;
+float32_t CLLLC_iPrimTankPhsSensedOffset_pu;
 
 float32_t CLLLC_vPrimSensed_Volts;
 float32_t CLLLC_vPrimSensed_pu;
@@ -237,8 +275,44 @@ float32_t CLLLC_freqVect[CLLLC_SFRA_FREQ_LENGTH];
 
 SFRA_F32 CLLLC_sfra1;
 
+void CLLLC_updateFaultDebugSignals(void)
+{
+    CLLLC_hfcGanFaultGpioLevel =
+            (uint16_t)GPIO_readPin(CLLLC_GANFAULTn_GPIO);
+    CLLLC_hfcGanFaultActiveLow =
+            (CLLLC_hfcGanFaultGpioLevel == 0U) ? 1U : 0U;
+    CLLLC_hfcGanFaultXbarFlag =
+            (XBAR_getInputFlagStatus(XBAR_INPUT_FLG_INPUT2) == 1U) ? 1U : 0U;
+
+    CLLLC_epwm1TzFlgDebug =
+            EPWM_getTripZoneFlagStatus(CLLLC_PRIM_LEG1_PWM_BASE);
+    CLLLC_epwm2TzFlgDebug =
+            EPWM_getTripZoneFlagStatus(CLLLC_PRIM_LEG2_PWM_BASE);
+    CLLLC_epwm3TzFlgDebug =
+            EPWM_getTripZoneFlagStatus(CLLLC_SEC_LEG1_PWM_BASE);
+
+    CLLLC_epwm1TzOstFlgDebug =
+            EPWM_getOneShotTripZoneFlagStatus(CLLLC_PRIM_LEG1_PWM_BASE);
+    CLLLC_epwm2TzOstFlgDebug =
+            EPWM_getOneShotTripZoneFlagStatus(CLLLC_PRIM_LEG2_PWM_BASE);
+    CLLLC_epwm3TzOstFlgDebug =
+            EPWM_getOneShotTripZoneFlagStatus(CLLLC_SEC_LEG1_PWM_BASE);
+
+    CLLLC_epwm1GanFaultOst2Latched =
+            ((CLLLC_epwm1TzOstFlgDebug & CLLLC_GANFAULTn_EPWM_FLAG) != 0U) ?
+                    1U : 0U;
+    CLLLC_epwm2GanFaultOst2Latched =
+            ((CLLLC_epwm2TzOstFlgDebug & CLLLC_GANFAULTn_EPWM_FLAG) != 0U) ?
+                    1U : 0U;
+    CLLLC_epwm3GanFaultOst2Latched =
+            ((CLLLC_epwm3TzOstFlgDebug & CLLLC_GANFAULTn_EPWM_FLAG) != 0U) ?
+                    1U : 0U;
+}
+
 void CLLLC_runISR3(void)
 {
+    CLLLC_updateFaultDebugSignals();
+
     CLLLC_iSecSenseDiag = CLLLC_readSecSenseDiag();
 
     EMAVG_run(&CLLLC_iSecSensedAvg_pu, CLLLC_iSecSensed_pu);
@@ -432,6 +506,8 @@ void CLLLC_initGlobalVariables(void)
     CLLLC_iPrimTankPhsSensedRaw = 0;
     CLLLC_iPrimTankModSensed_pu = 0.0f;
     CLLLC_iPrimTankPhsSensed_pu = 0.0f;
+    CLLLC_iPrimTankModSensedOffset_pu = 0.0f;
+    CLLLC_iPrimTankPhsSensedOffset_pu = 0.0f;
     CLLLC_vPrimSensed_Volts = 0;
     CLLLC_iSecSensed_Amps = 0;
     CLLLC_vSecSensed_Volts = 0;
@@ -522,6 +598,11 @@ void CLLLC_initGlobalVariables(void)
     CLLLC_closeGiLoop = 0;
     CLLLC_closeGvLoop = 0;
     CLLLC_clearTrip = 0;
+    CLLLC_hfcReceiverTestEnable = 0;
+    CLLLC_hfcReceiverTestRun = 0;
+    CLLLC_hfcReceiverTestActive = 0;
+    CLLLC_hfcReceiverTestDuty_pu = 0.5f;
+    CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu = 0.0f;
 
 //    CLLLC_cla_task_counter = 0;
 

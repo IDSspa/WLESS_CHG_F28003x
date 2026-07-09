@@ -114,7 +114,7 @@ extern "C" {
 //
 // SFRA running on TTPLPFC
 //
-#define TTPLPFC_SFRA_ALLOWED 1 //OBC_7_4KW_RUN_SFRA_ON_PFC
+#define TTPLPFC_SFRA_ALLOWED 0 // WLESS: SFRA not used; keep SCIA/GPIO28-29 free for application comms.
 
 #if TTPLPFC_LAB == 1
 #define TTPLPFC_DC_CHECK 1

@@ -304,6 +304,59 @@ static inline void TTPLPFC_HAL_updatePWM(uint32_t base, float32_t duty)
 
 }
 
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_HAL_setupBBCBoostLowSidePWM)
+static inline void TTPLPFC_HAL_setupBBCBoostLowSidePWM(uint32_t base)
+{
+    //
+    // BBC boost bench-test mode: keep the high-side command low and drive the
+    // low-side command directly with CMPA. This avoids reusing the legacy PFC
+    // complementary dead-band output where a very small duty on A becomes an
+    // almost-continuous ON command on B.
+    //
+    HWREGH(base + EPWM_O_DBCTL) =
+            (HWREGH(base + EPWM_O_DBCTL) & ~EPWM_DBCTL_OUT_MODE_M);
+
+    HWREGH(base + EPWM_O_AQCTLA) = 0;
+    HWREGH(base + EPWM_O_AQCTLB) = 0;
+
+    EPWM_setActionQualifierAction(base, EPWM_AQ_OUTPUT_B,
+            EPWM_AQ_OUTPUT_LOW, EPWM_AQ_OUTPUT_ON_TIMEBASE_UP_CMPA);
+    EPWM_setActionQualifierAction(base, EPWM_AQ_OUTPUT_B,
+            EPWM_AQ_OUTPUT_HIGH, EPWM_AQ_OUTPUT_ON_TIMEBASE_DOWN_CMPA);
+
+    //
+    // Force EPWMxA low continuously. Leave EPWMxB controlled by AQCTLB.
+    //
+    HWREGH(base + EPWM_O_AQCSFRC) = 0x01;
+}
+
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_HAL_setupBBCBuckHighSidePWM)
+static inline void TTPLPFC_HAL_setupBBCBuckHighSidePWM(uint32_t base)
+{
+    //
+    // BBC buck bench-test mode: drive the high-side command directly with
+    // CMPA and keep the low-side command low. This is the conservative,
+    // non-synchronous pattern selected for the first low-energy reverse-flow
+    // tests. Synchronous buck operation, if required, must be enabled only
+    // after this pattern has been verified.
+    //
+    HWREGH(base + EPWM_O_DBCTL) =
+            (HWREGH(base + EPWM_O_DBCTL) & ~EPWM_DBCTL_OUT_MODE_M);
+
+    HWREGH(base + EPWM_O_AQCTLA) = 0;
+    HWREGH(base + EPWM_O_AQCTLB) = 0;
+
+    EPWM_setActionQualifierAction(base, EPWM_AQ_OUTPUT_A,
+            EPWM_AQ_OUTPUT_LOW, EPWM_AQ_OUTPUT_ON_TIMEBASE_UP_CMPA);
+    EPWM_setActionQualifierAction(base, EPWM_AQ_OUTPUT_A,
+            EPWM_AQ_OUTPUT_HIGH, EPWM_AQ_OUTPUT_ON_TIMEBASE_DOWN_CMPA);
+
+    //
+    // Leave EPWMxA controlled by AQCTLA. Force EPWMxB low continuously.
+    //
+    HWREGH(base + EPWM_O_AQCSFRC) = 0x04;
+}
+
 #pragma FUNC_ALWAYS_INLINE(TTPLPFC_HAL_enableHighSideHFPWM)
 static inline void TTPLPFC_HAL_enableHighSideHFPWM()
 {

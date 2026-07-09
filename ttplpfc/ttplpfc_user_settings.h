@@ -25,15 +25,24 @@
 
 //
 // Select the exclusive owner of EPWM6 and EPWM7.
-// Keep legacy PFC selected until the BBC control algorithm is implemented.
+// The wireless charger reuses these legs for the BBC stage. Keep the BBC owner
+// selected; power outputs remain disabled by UNIPD_BBC_ENABLE_POWER_OUTPUTS
+// until the BBC control algorithm and gate mapping are verified.
 //
 #define TTPLPFC_EPWM67_CONTROL_LEGACY_PFC           0
 #define TTPLPFC_EPWM67_CONTROL_BBC                  1
 
 #ifndef TTPLPFC_EPWM67_ACTIVE_CONTROL
 #define TTPLPFC_EPWM67_ACTIVE_CONTROL               \
-        TTPLPFC_EPWM67_CONTROL_LEGACY_PFC
+        TTPLPFC_EPWM67_CONTROL_BBC
 #endif
+
+//
+// The modified wireless-charger board reuses the original PFC VBUS sense path,
+// but bench measurements show the legacy scaling reports about 1.94x the real
+// DCLINK voltage. Keep this correction local to the BBC/WLESS path.
+//
+#define TTPLPFC_WLESS_VBUS_SENSE_CORRECTION         ((float32_t)0.515)
 
 #if (TTPLPFC_EPWM67_ACTIVE_CONTROL != TTPLPFC_EPWM67_CONTROL_LEGACY_PFC) && \
     (TTPLPFC_EPWM67_ACTIVE_CONTROL != TTPLPFC_EPWM67_CONTROL_BBC)

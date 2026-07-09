@@ -277,8 +277,29 @@ typedef enum
     TTPLPFC_BBC_MODE_BUCK = 2
 } TTPLPFC_BBC_Mode;
 
+typedef enum
+{
+    TTPLPFC_BBC_DOCK_TEST_LEG_DISABLED = 0,
+    TTPLPFC_BBC_DOCK_TEST_LEG1_ONLY = 1,
+    TTPLPFC_BBC_DOCK_TEST_LEG2_ONLY = 2,
+    TTPLPFC_BBC_DOCK_TEST_LEG_BOTH = 3
+} TTPLPFC_BBC_DockTestLegMode;
+
 extern volatile TTPLPFC_BBC_Mode TTPLPFC_bbcMode;
 extern volatile int32_t TTPLPFC_bbcEnabled;
+extern volatile int32_t TTPLPFC_bbcDockTestEnable;
+extern volatile TTPLPFC_BBC_Mode TTPLPFC_bbcDockTestMode;
+extern volatile TTPLPFC_BBC_DockTestLegMode TTPLPFC_bbcDockTestLegMode;
+extern volatile float32_t TTPLPFC_bbcDockTestDuty1_pu;
+extern volatile float32_t TTPLPFC_bbcDockTestDuty2_pu;
+extern volatile float32_t TTPLPFC_bbcDockTestVbusTrip_Volts;
+extern volatile int32_t TTPLPFC_bbcDockTestVbusTripLatched;
+extern volatile float32_t TTPLPFC_bbcDockTestVbusTripCapture_Volts;
+extern volatile float32_t TTPLPFC_bbcDockTestVbusMax_Volts;
+extern volatile int32_t TTPLPFC_bbcDockTestDutyRampEnable;
+extern volatile float32_t TTPLPFC_bbcDockTestDutyRampStep_pu;
+extern volatile float32_t TTPLPFC_bbcDockTestDutyRamp1_pu;
+extern volatile float32_t TTPLPFC_bbcDockTestDutyRamp2_pu;
 
 //
 // globals
@@ -522,10 +543,166 @@ static inline void TTPLPFC_BBC_enable(void)
 {
     if(TTPLPFC_bbcMode != TTPLPFC_BBC_MODE_DISABLED)
     {
+        TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG1_PWM_BASE, TTPLPFC_duty1_pu);
+        TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG2_PWM_BASE, TTPLPFC_duty2_pu);
         TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG1_PWM_BASE);
         TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG2_PWM_BASE);
         TTPLPFC_bbcEnabled = 1;
     }
+}
+
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_updateVbusSense)
+static inline void TTPLPFC_BBC_updateVbusSense(void)
+{
+    TTPLPFC_vBus_sensed_pu = ((float32_t)(TTPLPFC_VBUS_FB +
+            TTPLPFC_VBUS_FB_2) *
+            TTPLPFC_ADC_PU_SCALE_FACTOR * (1.0f / 2.0f));
+    TTPLPFC_vBus_sensed_Volts =
+            TTPLPFC_vBus_sensed_pu * TTPLPFC_VDCBUS_MAX_SENSE *
+            TTPLPFC_WLESS_VBUS_SENSE_CORRECTION;
+}
+
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_runDockingTest)
+static inline int32_t TTPLPFC_BBC_runDockingTest(void)
+{
+    TTPLPFC_BBC_updateVbusSense();
+
+    if(TTPLPFC_bbcDockTestEnable == 0)
+    {
+        TTPLPFC_bbcDockTestDutyRamp1_pu = 0.0f;
+        TTPLPFC_bbcDockTestDutyRamp2_pu = 0.0f;
+        return 0;
+    }
+
+    if(TTPLPFC_vBus_sensed_Volts > TTPLPFC_bbcDockTestVbusMax_Volts)
+    {
+        TTPLPFC_bbcDockTestVbusMax_Volts = TTPLPFC_vBus_sensed_Volts;
+    }
+
+    if((TTPLPFC_bbcDockTestVbusTrip_Volts > 0.0f) &&
+       (TTPLPFC_vBus_sensed_Volts >= TTPLPFC_bbcDockTestVbusTrip_Volts))
+    {
+        TTPLPFC_bbcDockTestVbusTripLatched = 1;
+        TTPLPFC_bbcDockTestVbusTripCapture_Volts =
+                TTPLPFC_vBus_sensed_Volts;
+        TTPLPFC_bbcDockTestEnable = 0;
+        TTPLPFC_BBC_disable();
+        return 1;
+    }
+
+    TTPLPFC_BBC_setMode(TTPLPFC_bbcDockTestMode);
+
+    if(TTPLPFC_bbcMode == TTPLPFC_BBC_MODE_BOOST)
+    {
+        if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG1_ONLY) ||
+           (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
+        {
+            TTPLPFC_HAL_setupBBCBoostLowSidePWM(TTPLPFC_BBC_LEG1_PWM_BASE);
+        }
+
+        if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG2_ONLY) ||
+           (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
+        {
+            TTPLPFC_HAL_setupBBCBoostLowSidePWM(TTPLPFC_BBC_LEG2_PWM_BASE);
+        }
+    }
+    else if(TTPLPFC_bbcMode == TTPLPFC_BBC_MODE_BUCK)
+    {
+        if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG1_ONLY) ||
+           (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
+        {
+            TTPLPFC_HAL_setupBBCBuckHighSidePWM(TTPLPFC_BBC_LEG1_PWM_BASE);
+        }
+
+        if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG2_ONLY) ||
+           (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
+        {
+            TTPLPFC_HAL_setupBBCBuckHighSidePWM(TTPLPFC_BBC_LEG2_PWM_BASE);
+        }
+    }
+
+    if(TTPLPFC_bbcDockTestDutyRampEnable != 0)
+    {
+        if(TTPLPFC_bbcDockTestDutyRamp1_pu < TTPLPFC_bbcDockTestDuty1_pu)
+        {
+            TTPLPFC_bbcDockTestDutyRamp1_pu +=
+                    TTPLPFC_bbcDockTestDutyRampStep_pu;
+            if(TTPLPFC_bbcDockTestDutyRamp1_pu > TTPLPFC_bbcDockTestDuty1_pu)
+            {
+                TTPLPFC_bbcDockTestDutyRamp1_pu = TTPLPFC_bbcDockTestDuty1_pu;
+            }
+        }
+        else
+        {
+            TTPLPFC_bbcDockTestDutyRamp1_pu = TTPLPFC_bbcDockTestDuty1_pu;
+        }
+
+        if(TTPLPFC_bbcDockTestDutyRamp2_pu < TTPLPFC_bbcDockTestDuty2_pu)
+        {
+            TTPLPFC_bbcDockTestDutyRamp2_pu +=
+                    TTPLPFC_bbcDockTestDutyRampStep_pu;
+            if(TTPLPFC_bbcDockTestDutyRamp2_pu > TTPLPFC_bbcDockTestDuty2_pu)
+            {
+                TTPLPFC_bbcDockTestDutyRamp2_pu = TTPLPFC_bbcDockTestDuty2_pu;
+            }
+        }
+        else
+        {
+            TTPLPFC_bbcDockTestDutyRamp2_pu = TTPLPFC_bbcDockTestDuty2_pu;
+        }
+    }
+    else
+    {
+        TTPLPFC_bbcDockTestDutyRamp1_pu = TTPLPFC_bbcDockTestDuty1_pu;
+        TTPLPFC_bbcDockTestDutyRamp2_pu = TTPLPFC_bbcDockTestDuty2_pu;
+    }
+
+    TTPLPFC_BBC_setDuty(
+            (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG1_ONLY) ||
+            (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH) ?
+                    TTPLPFC_bbcDockTestDutyRamp1_pu : 0.0f,
+            (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG2_ONLY) ||
+            (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH) ?
+                    TTPLPFC_bbcDockTestDutyRamp2_pu : 0.0f);
+
+    TTPLPFC_bbcEnabled = 0;
+
+    if(TTPLPFC_bbcMode != TTPLPFC_BBC_MODE_DISABLED)
+    {
+        if(TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_DISABLED)
+        {
+            TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG1_PWM_BASE);
+            TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG2_PWM_BASE);
+        }
+        else if(TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG1_ONLY)
+        {
+            TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG2_PWM_BASE);
+            TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG1_PWM_BASE,
+                                  TTPLPFC_duty1_pu);
+            TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG1_PWM_BASE);
+            TTPLPFC_bbcEnabled = 1;
+        }
+        else if(TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG2_ONLY)
+        {
+            TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG1_PWM_BASE);
+            TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG2_PWM_BASE,
+                                  TTPLPFC_duty2_pu);
+            TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG2_PWM_BASE);
+            TTPLPFC_bbcEnabled = 1;
+        }
+        else if(TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH)
+        {
+            TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG1_PWM_BASE,
+                                  TTPLPFC_duty1_pu);
+            TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG1_PWM_BASE);
+            TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG2_PWM_BASE,
+                                  TTPLPFC_duty2_pu);
+            TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG2_PWM_BASE);
+            TTPLPFC_bbcEnabled = 1;
+        }
+    }
+
+    return 1;
 }
 
 #pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_runControlPlaceholder)

@@ -36,6 +36,23 @@ UNIPD_BbcIntegrationInputs UNIPD_bbcInputs;
 UNIPD_DcBusCoilControlOutput UNIPD_bbcOutput;
 unsigned int UNIPD_bbcSignalValidMask;
 unsigned int UNIPD_bbcSignalMissingMask = UNIPD_BBC_REQUIRED_SIGNAL_MASK;
+volatile unsigned int UNIPD_bbcSyntheticTestEnable;
+volatile unsigned int UNIPD_bbcSyntheticValidMask = UNIPD_BBC_REQUIRED_SIGNAL_MASK;
+volatile UNIPD_BbcIntegrationInputs UNIPD_bbcSyntheticInputs =
+{
+    300.0f,
+    96.0f,
+    0.0f,
+    0.0f,
+    10.0f,
+    5.0f,
+    12.0f,
+    320.0f,
+    5.0f,
+    -5.0f,
+    1U,
+    UNIPD_BBC_REQUIRED_SIGNAL_MASK
+};
 
 static const float unipd_arcsin_table[101] = {
     0.000000000000000f, 0.003183151915873f, 0.006366622213270f, 0.009550729560432f,
@@ -419,6 +436,23 @@ void UNIPD_controlDcBusAndCoilCurrent(UNIPD_DcBusCoilControlState *state,
     }
 }
 
+static void unipd_applySyntheticBbcIntegrationInputs(
+        UNIPD_BbcIntegrationInputs *input)
+{
+    input->v_dc = UNIPD_bbcSyntheticInputs.v_dc;
+    input->v_bat = UNIPD_bbcSyntheticInputs.v_bat;
+    input->i_l_a = UNIPD_bbcSyntheticInputs.i_l_a;
+    input->i_l_b = UNIPD_bbcSyntheticInputs.i_l_b;
+    input->i_coil_loc = UNIPD_bbcSyntheticInputs.i_coil_loc;
+    input->i_coil_rem_err = UNIPD_bbcSyntheticInputs.i_coil_rem_err;
+    input->i_coil_loc_rif = UNIPD_bbcSyntheticInputs.i_coil_loc_rif;
+    input->v_dc_pbat_rif = UNIPD_bbcSyntheticInputs.v_dc_pbat_rif;
+    input->i_bat_rif_max = UNIPD_bbcSyntheticInputs.i_bat_rif_max;
+    input->i_bat_rif_min = UNIPD_bbcSyntheticInputs.i_bat_rif_min;
+    input->tx_1_rx_0 = UNIPD_bbcSyntheticInputs.tx_1_rx_0;
+    input->valid_mask = UNIPD_bbcSyntheticValidMask;
+}
+
 void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input)
 {
     input->v_dc = 0.0f;
@@ -453,6 +487,11 @@ void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input)
                          UNIPD_BBC_SIGNAL_I_L_A |
                          UNIPD_BBC_SIGNAL_I_L_B |
                          UNIPD_BBC_SIGNAL_I_COIL_LOC;
+
+    if(UNIPD_bbcSyntheticTestEnable != 0U)
+    {
+        unipd_applySyntheticBbcIntegrationInputs(input);
+    }
 }
 
 void OBC_7_4KW_runUnipdBbcControl(void)

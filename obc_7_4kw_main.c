@@ -219,7 +219,10 @@ interrupt void ISR2_primToSecPowerFlow(void)
 #endif
 #endif
 #if TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_BBC
-    OBC_7_4KW_runUnipdBbcControl();
+    if(TTPLPFC_BBC_runDockingTest() == 0)
+    {
+        OBC_7_4KW_runUnipdBbcControl();
+    }
 #elif TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_LEGACY_PFC
 #if TTPLPFC_LAB == 1
     TTPLPFC_runISR1_lab1();

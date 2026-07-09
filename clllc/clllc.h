@@ -154,6 +154,11 @@ static inline float32_t CLLLC_runDF13_L6(DCL_DF13_CLA *p,
 //
 void CLLLC_runISR3(void);
 
+//
+// Function updates debug-only fault/trip observability variables.
+//
+void CLLLC_updateFaultDebugSignals(void);
+
 interrupt void ISR1(void);
 interrupt void ISR1_phaseShift(void);
 
@@ -316,6 +321,24 @@ extern float32_t CLLLC_gvPartialComputedValue;
 extern int32_t CLLLC_closeGiLoop;
 extern int32_t CLLLC_closeGvLoop;
 extern int32_t CLLLC_clearTrip;
+extern volatile uint16_t CLLLC_hfcReceiverTestEnable;
+extern volatile uint16_t CLLLC_hfcReceiverTestRun;
+extern volatile uint16_t CLLLC_hfcReceiverTestActive;
+extern volatile float32_t CLLLC_hfcReceiverTestDuty_pu;
+extern volatile float32_t CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu;
+
+extern volatile uint16_t CLLLC_hfcGanFaultGpioLevel;
+extern volatile uint16_t CLLLC_hfcGanFaultActiveLow;
+extern volatile uint16_t CLLLC_hfcGanFaultXbarFlag;
+extern volatile uint16_t CLLLC_epwm1TzFlgDebug;
+extern volatile uint16_t CLLLC_epwm2TzFlgDebug;
+extern volatile uint16_t CLLLC_epwm3TzFlgDebug;
+extern volatile uint16_t CLLLC_epwm1TzOstFlgDebug;
+extern volatile uint16_t CLLLC_epwm2TzOstFlgDebug;
+extern volatile uint16_t CLLLC_epwm3TzOstFlgDebug;
+extern volatile uint16_t CLLLC_epwm1GanFaultOst2Latched;
+extern volatile uint16_t CLLLC_epwm2GanFaultOst2Latched;
+extern volatile uint16_t CLLLC_epwm3GanFaultOst2Latched;
 
 extern float32_t CLLLC_pwmFrequency_Hz;
 extern float32_t CLLLC_pwmFrequencyPrev_Hz;
@@ -349,6 +372,8 @@ extern uint16_t CLLLC_iPrimTankModSensedRaw;
 extern uint16_t CLLLC_iPrimTankPhsSensedRaw;
 extern float32_t CLLLC_iPrimTankModSensed_pu;
 extern float32_t CLLLC_iPrimTankPhsSensed_pu;
+extern float32_t CLLLC_iPrimTankModSensedOffset_pu;
+extern float32_t CLLLC_iPrimTankPhsSensedOffset_pu;
 
 extern float32_t CLLLC_vPrimSensed_Volts;
 extern float32_t CLLLC_vPrimSensed_pu;
@@ -490,10 +515,12 @@ static inline void CLLLC_readPrimaryTankMagnitudeAndPhase(void)
 
     CLLLC_iPrimTankModSensed_pu =
             (float32_t)CLLLC_iPrimTankModSensedRaw *
-            CLLLC_ADC_PU_SCALE_FACTOR;
+            CLLLC_ADC_PU_SCALE_FACTOR -
+            CLLLC_iPrimTankModSensedOffset_pu;
     CLLLC_iPrimTankPhsSensed_pu =
             (float32_t)CLLLC_iPrimTankPhsSensedRaw *
-            CLLLC_ADC_PU_SCALE_FACTOR;
+            CLLLC_ADC_PU_SCALE_FACTOR -
+            CLLLC_iPrimTankPhsSensedOffset_pu;
 }
 
 #pragma FUNC_ALWAYS_INLINE(CLLLC_readSensedSignalsPrimToSecPowerFlow)
@@ -1282,6 +1309,74 @@ static inline void CLLLC_clearPWMTrip(void)
     }
 }
 
+#define CLLLC_FORCE_PWM_OST_TRIP(base)                 \
+    do                                                 \
+    {                                                  \
+        EALLOW;                                        \
+        HWREGH((base) + EPWM_O_TZFRC) |= EPWM_TZFRC_OST; \
+        EDIS;                                          \
+    } while(0)
+
+#pragma FUNC_ALWAYS_INLINE(CLLLC_runHfcReceiverTestMode)
+static inline void CLLLC_runHfcReceiverTestMode(void)
+{
+    float32_t duty_pu;
+    float32_t phaseShift_pu;
+
+    if(CLLLC_hfcReceiverTestEnable == 0U)
+    {
+        CLLLC_hfcReceiverTestActive = 0U;
+        return;
+    }
+
+    //
+    // This is a fixed-timing receiver/rectifier bring-up mode. It only owns
+    // the retained HFC bridge and never re-enables the removed secondary stage.
+    //
+    CLLLC_closeGiLoop = 0;
+    CLLLC_closeGvLoop = 0;
+
+    duty_pu = CLLLC_hfcReceiverTestDuty_pu;
+    if(duty_pu < 0.05f)
+    {
+        duty_pu = 0.05f;
+    }
+    else if(duty_pu > 0.5f)
+    {
+        duty_pu = 0.5f;
+    }
+    CLLLC_hfcReceiverTestDuty_pu = duty_pu;
+
+    phaseShift_pu = CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu;
+    if(phaseShift_pu < -0.45f)
+    {
+        phaseShift_pu = -0.45f;
+    }
+    else if(phaseShift_pu > 0.45f)
+    {
+        phaseShift_pu = 0.45f;
+    }
+    CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu = phaseShift_pu;
+
+    CLLLC_pwmDutyPrimRef_pu = duty_pu;
+    CLLLC_pwmPhaseShiftPrimLegsRef_pu = phaseShift_pu;
+
+    if(CLLLC_hfcReceiverTestRun == 0U)
+    {
+        CLLLC_FORCE_PWM_OST_TRIP(CLLLC_PRIM_LEG1_PWM_BASE);
+        CLLLC_FORCE_PWM_OST_TRIP(CLLLC_PRIM_LEG2_PWM_BASE);
+#if (CLLLC_PWM3_SYNC90_ENABLED == 1) && \
+    (CLLLC_SECONDARY_ENABLED == 0)
+        CLLLC_FORCE_PWM_OST_TRIP(CLLLC_SEC_LEG1_PWM_BASE);
+#endif
+        CLLLC_hfcReceiverTestActive = 0U;
+        return;
+    }
+
+    CLLLC_hfcReceiverTestActive =
+            (CLLLC_tripFlag.CLLLC_TripFlag_Enum == noTrip) ? 1U : 0U;
+}
+
 #pragma FUNC_ALWAYS_INLINE(CLLLC_modeDetect)
 static inline void CLLLC_modeDetect(void)
 {
@@ -1399,6 +1494,7 @@ static inline void CLLLC_runOpenLoop(void)
 {
     CLLLC_readSensedSignalsPrimToSecPowerFlow();
     CLLLC_clearPWMTrip();
+    CLLLC_runHfcReceiverTestMode();
     CLLLC_modeDetect();
     CLLLC_setCommutatorLC(CLLLC_enableLC);
 

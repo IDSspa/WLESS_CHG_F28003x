@@ -140,7 +140,7 @@
                     
                     
                     
-                    <property Type="stringfield" Value="5MHz" id="-- Enter a value from 100.0kHz to 2.5MHz"/>
+                    <property Type="stringfield" Value="100kHz" id="-- Enter a value from 100.0kHz to 2.5MHz"/>
                                                                                                                                                                                                                                             
                 
                 
@@ -187,6 +187,7 @@
             
             
             
+            <property id="Power Selection" Type="choicelist" Value="0"/>
             <platform XML_version="1.2" id="platform_0">
                                                                                                                                                                                                                 
                 
