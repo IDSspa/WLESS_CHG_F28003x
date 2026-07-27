@@ -1,1 +1,6 @@
 RELEASE/
+.ti_appdata/
+targetConfigs/
+.codex_page*.png
+tmp_tms_toc_*.png
+/true
