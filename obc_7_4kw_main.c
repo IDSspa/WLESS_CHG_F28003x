@@ -227,6 +227,10 @@ interrupt void ISR2_primToSecPowerFlow(void)
     {
         OBC_7_4KW_runUnipdBbcControl();
     }
+    else
+    {
+        UNIPD_runBbcDockingDiagnostics();
+    }
     UNIPD_runTransferredPowerIntegration();
 #elif TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_LEGACY_PFC
 #if TTPLPFC_LAB == 1

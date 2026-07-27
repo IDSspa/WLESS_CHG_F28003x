@@ -193,6 +193,14 @@ extern volatile float UNIPD_vBatMaxAlg_Volts;
 extern volatile float UNIPD_vDcMinAlg_Volts;
 extern volatile float UNIPD_vDcMaxAlg_Volts;
 extern volatile float UNIPD_vdcControllerGainScale;
+/*
+ * Physical inductor-current polarity correction:
+ * bit 0 inverts IL_A, bit 1 inverts IL_B.  Raw values remain available for
+ * diagnostics; the corrected values feed UniPD, trips and capture.
+ */
+extern volatile unsigned int UNIPD_bbcCurrentPolarityMask;
+extern volatile float UNIPD_bbcILRawA_Amps;
+extern volatile float UNIPD_bbcILRawB_Amps;
 extern volatile unsigned int UNIPD_bbcPowerOutputEnable;
 extern volatile float UNIPD_bbcPowerOutputDutyMax_pu;
 extern volatile unsigned int UNIPD_bbcDutyMappingMode;
@@ -365,6 +373,7 @@ void UNIPD_controlDcBusAndCoilCurrent(UNIPD_DcBusCoilControlState *state,
 #endif
 
 void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input);
+void UNIPD_runBbcDockingDiagnostics(void);
 void OBC_7_4KW_runUnipdBbcControl(void);
 void OBC_7_4KW_runUnipdControlHooks(void);
 

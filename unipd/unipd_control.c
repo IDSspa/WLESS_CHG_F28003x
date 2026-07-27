@@ -68,6 +68,9 @@ volatile float UNIPD_vBatMaxAlg_Volts = UNIPD_V_BAT_MAX_ALG;
 volatile float UNIPD_vDcMinAlg_Volts = UNIPD_V_DC_MIN_TEST_ALG;
 volatile float UNIPD_vDcMaxAlg_Volts = UNIPD_V_DC_MAX_ALG;
 volatile float UNIPD_vdcControllerGainScale = 1.0f;
+volatile unsigned int UNIPD_bbcCurrentPolarityMask;
+volatile float UNIPD_bbcILRawA_Amps;
+volatile float UNIPD_bbcILRawB_Amps;
 volatile unsigned int UNIPD_bbcPowerOutputEnable;
 volatile float UNIPD_bbcPowerOutputDutyMax_pu = 0.35f;
 volatile unsigned int UNIPD_bbcDutyMappingMode = 1U;
@@ -1236,8 +1239,14 @@ void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input)
     input->v_dc = TTPLPFC_vBus_sensed_pu * TTPLPFC_VDCBUS_MAX_SENSE *
                   TTPLPFC_WLESS_VBUS_SENSE_CORRECTION;
     input->v_bat = TTPLPFC_vBatSensed_Volts;
-    input->i_l_a = TTPLPFC_iL1_sensed_pu * TTPLPFC_IL_MAX_SENSE;
-    input->i_l_b = TTPLPFC_iL2_sensed_pu * TTPLPFC_IL_MAX_SENSE;
+    UNIPD_bbcILRawA_Amps =
+            TTPLPFC_iL1_sensed_pu * TTPLPFC_IL_MAX_SENSE;
+    UNIPD_bbcILRawB_Amps =
+            TTPLPFC_iL2_sensed_pu * TTPLPFC_IL_MAX_SENSE;
+    input->i_l_a = ((UNIPD_bbcCurrentPolarityMask & 1U) != 0U) ?
+                   -UNIPD_bbcILRawA_Amps : UNIPD_bbcILRawA_Amps;
+    input->i_l_b = ((UNIPD_bbcCurrentPolarityMask & 2U) != 0U) ?
+                   -UNIPD_bbcILRawB_Amps : UNIPD_bbcILRawB_Amps;
     input->i_coil_loc =
             CLLLC_iTankModSensed_pu * CLLLC_IPRIM_TANK_MAX_SENSE_AMPS;
 
@@ -1251,6 +1260,33 @@ void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input)
     {
         unipd_applySyntheticBbcIntegrationInputs(input);
     }
+}
+
+void UNIPD_runBbcDockingDiagnostics(void)
+{
+    /*
+     * The docking-test path has ISR precedence over the UniPD controller.
+     * Keep the physical measurements and the diagnostic capture alive without
+     * executing the controller or writing any additional PWM command.
+     */
+    UNIPD_collectBbcIntegrationInputs(&UNIPD_bbcInputs);
+    UNIPD_bbcSignalValidMask = UNIPD_bbcInputs.valid_mask;
+    UNIPD_bbcSignalMissingMask =
+            UNIPD_BBC_REQUIRED_SIGNAL_MASK & ~UNIPD_bbcSignalValidMask;
+
+    /*
+     * During docking tests these fields describe the duty actually handed to
+     * the BBC adapter. Controller references/errors remain untouched so that
+     * no open-loop sample can alter the UniPD control state.
+     */
+    UNIPD_bbcMappedDutyA_pu = TTPLPFC_duty1_pu;
+    UNIPD_bbcMappedDutyB_pu = TTPLPFC_duty2_pu;
+    UNIPD_bbcAppliedDutyA_pu = TTPLPFC_duty1_pu;
+    UNIPD_bbcAppliedDutyB_pu = TTPLPFC_duty2_pu;
+    UNIPD_bbcRampedDutyA_pu = TTPLPFC_duty1_pu;
+    UNIPD_bbcRampedDutyB_pu = TTPLPFC_duty2_pu;
+
+    unipd_captureBbcCycle();
 }
 
 void OBC_7_4KW_runUnipdBbcControl(void)

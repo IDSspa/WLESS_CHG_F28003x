@@ -419,6 +419,45 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         return 0U;
     }
 
+    /*
+     * Correct the physical IL_A/IL_B sign convention without consuming a bit
+     * in the already full command mask.  Changing polarity while the BBC is
+     * active would instantaneously change controller feedback, so reject it.
+     * UP bit 0 = invert IL_A; bit 1 = invert IL_B.
+     */
+    if(strcmp(command, "UP?") == 0)
+    {
+        WLESS_UART_commandCount++;
+        WLESS_UART_sendString("UP=");
+        WLESS_UART_sendInt((int32_t)UNIPD_bbcCurrentPolarityMask);
+        WLESS_UART_sendString("\r\n");
+        return 0U;
+    }
+    if(WLESS_UART_parseExactUnsigned(command, "UP=", &wptValue) != 0U)
+    {
+        WLESS_UART_commandCount++;
+        if(wptValue > 3UL)
+        {
+            WLESS_UART_sendString("UP RANGE\r\n");
+            WLESS_UART_commandErrorCount++;
+            return 1U;
+        }
+        if((UNIPD_bbcPowerOutputEnable != 0U) ||
+           (TTPLPFC_bbcEnabled != 0U) ||
+           (TTPLPFC_bbcDockTestEnable != 0U))
+        {
+            WLESS_UART_sendString("UP REJECTED ACTIVE\r\n");
+            WLESS_UART_commandErrorCount++;
+            return 1U;
+        }
+        UNIPD_bbcCurrentPolarityMask = (unsigned int)wptValue;
+        UNIPD_resetControlStatesCommand = 1U;
+        WLESS_UART_sendString("UP=");
+        WLESS_UART_sendInt((int32_t)UNIPD_bbcCurrentPolarityMask);
+        WLESS_UART_sendString("\r\n");
+        return 0U;
+    }
+
     /* Explicit HFC source bridge control for bench tests.  The receiver test
      * path remains disabled: the remote bridge is used as a passive rectifier. */
     if(strcmp(command, "HFC=0") == 0)
@@ -1894,6 +1933,12 @@ static void WLESS_UART_sendUnipd(void)
     WLESS_UART_sendInt((int32_t)(UNIPD_bbcDebugILerrA * 1000.0f));
     WLESS_UART_sendString(",");
     WLESS_UART_sendInt((int32_t)(UNIPD_bbcDebugILerrB * 1000.0f));
+    WLESS_UART_sendString(",");
+    WLESS_UART_sendInt((int32_t)UNIPD_bbcCurrentPolarityMask);
+    WLESS_UART_sendString(",");
+    WLESS_UART_sendInt((int32_t)(UNIPD_bbcILRawA_Amps * 1000.0f));
+    WLESS_UART_sendString(",");
+    WLESS_UART_sendInt((int32_t)(UNIPD_bbcILRawB_Amps * 1000.0f));
     WLESS_UART_sendString("\r\n");
 }
 

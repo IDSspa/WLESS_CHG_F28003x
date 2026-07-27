@@ -31,7 +31,7 @@ MEMORY
    /* BANK 0 */
    FLASH_BANK0_SEC0  : origin = 0x080002, length = 0x000FFE
    FLASH_BANK0_SEC1  : origin = 0x081000, length = 0x001000
-   FLASH_BANK0_SEC2_3_4  : origin = 0x082000, length = 0x004000
+   FLASH_BANK0_SEC2_5  : origin = 0x082000, length = 0x004000
 //   FLASH_BANK0_SEC3  : origin = 0x083000, length = 0x001000
 //   FLASH_BANK0_SEC4  : origin = 0x084000, length = 0x001000
 //   FLASH_BANK0_SEC5  : origin = 0x085000, length = 0x001000
@@ -93,7 +93,16 @@ MEMORY
 SECTIONS
 {
    .cinit           : > FLASH_BANK0_SEC1, ALIGN(4)
-   .text            : >>FLASH_BANK0_SEC2_3_4 , ALIGN(4)
+   /*
+    * SEC2..SEC5 were the original application-code area.  SEC10 and SEC11
+    * are otherwise unused and extend .text without overlapping the dedicated
+    * CLA/constant, ISR or UART sectors (SEC6..SEC9).  SEC12..SEC15 and Banks
+    * 1..2 remain unallocated for future partitioning, including persistent
+    * configuration storage.
+    */
+   .text            : >> FLASH_BANK0_SEC2_5 |
+                       FLASH_BANK0_SEC10 |
+                       FLASH_BANK0_SEC11, ALIGN(4)
    codestart        : > BEGIN, ALIGN(4)
 
    .stack           : > RAMM1
@@ -185,14 +194,14 @@ GROUP
    CLADataLS1       : > RAMLS0LS1
 
 #if defined(__TI_EABI__)
-   .const_cla      : LOAD = FLASH_BANK0_SEC2_3_4,
+   .const_cla      : LOAD = FLASH_BANK0_SEC2_5,
                       RUN = RAMLS0LS1,
                       RUN_START(Cla1ConstRunStart),
                       LOAD_START(Cla1ConstLoadStart),
                       LOAD_SIZE(Cla1ConstLoadSize),
                       ALIGN(4)
 #else
-   .const_cla      : LOAD = FLASH_BANK0_SEC2_3_4,
+   .const_cla      : LOAD = FLASH_BANK0_SEC2_5,
                       RUN = RAMLS0LS1,
                       RUN_START(_Cla1ConstRunStart),
                       LOAD_START(_Cla1ConstLoadStart),

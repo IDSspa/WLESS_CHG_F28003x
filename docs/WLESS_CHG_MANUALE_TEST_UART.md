@@ -1,4 +1,4 @@
-# Manuale operativo per test UART BOOST e HFC
+# Manuale operativo per test UART BOOST, BUCK e HFC
 
 ## 1. Scopo
 
@@ -6,10 +6,11 @@ Questo documento descrive l'esecuzione manuale, tramite UART, dei principali
 test di potenza disponibili nel firmware WLESS_CHG FW1024:
 
 1. BOOST UniPD closed-loop con HFC disabilitato;
-2. HFC separato con DCLINK SOURCE alimentato direttamente;
-3. HFC con phase shift manuale;
-4. HFC closed-loop distribuito UniPD;
-5. catena integrata BOOST closed-loop + HFC.
+2. BUCK UniPD closed-loop con emulatore batteria;
+3. HFC separato con DCLINK SOURCE alimentato direttamente;
+4. HFC con phase shift manuale;
+5. HFC closed-loop distribuito UniPD;
+6. catena integrata BOOST closed-loop + HFC.
 
 Il manuale e' destinato a personale di laboratorio che conosce le regole
 generali di sicurezza elettrica ma non necessariamente la storia dello
@@ -31,6 +32,8 @@ Fatti consolidati:
 - l'HFC e il rectifier passivo sono stati validati separatamente;
 - il trasferimento DCLINK-to-DCLINK e' stato validato con BOOST e BUCK spenti;
 - la catena BOOST closed-loop + HFC e' stata provata con successo;
+- il BUCK e' stato verificato open-loop, ma il closed-loop con emulatore
+  batteria non e' ancora validato;
 - il rectifier LOAD deve rimanere passivo durante le procedure qui descritte;
 - la STATION e' slave e risponde solo se interrogata.
 
@@ -49,7 +52,9 @@ Limitazioni:
   procedura firmware validata di scarica attiva;
 - il reset del latch non equivale alla scarica del DCLINK;
 - la combinazione scheda/controlCARD usata per il BOOST deve fornire una misura
-  VIN/VBATT fisica, calibrata e coerente con l'alimentatore.
+  VIN/VBATT fisica, calibrata e coerente con l'alimentatore;
+- il BUCK attuale pilota il solo high-side e usa il ricircolo passivo: non
+  implementa ancora la modulazione sincrona complementare prevista da UniPD.
 
 ## 3. Regole non derogabili
 
@@ -280,13 +285,18 @@ fault attivi.
 | `UN=<cicli>` | cicli | conferma trip corrente, campo 1...1000 |
 | `UF=1` | - | reset latch, solo dopo rimozione della causa |
 | `UF=2` | - | calibrazione offset correnti rami e reset latch |
+| `UP?` | - | legge la maschera di correzione polarita' correnti |
+| `UP=0` | - | nessuna inversione delle correnti fisiche |
+| `UP=1` | - | inverte `IL_A` |
+| `UP=2` | - | inverte `IL_B` |
+| `UP=3` | - | inverte entrambe le correnti |
 | `UE=1` | - | abilita l'attuatore BOOST/BUCK closed-loop |
 | `UE=0` | - | disabilita immediatamente l'attuatore |
 | `UB=0` | - | disabilita la modalita' open-loop |
 
 Nota: l'impostazione di `UV`, `UR`, `UA`, `UD`, `US`, `UX`, `UY`, `UC`,
-`UN`, `UF` o `UH` disabilita l'uscita. Impostare tutti i parametri prima di
-`UE=1`.
+`UN`, `UF` o `UH` disabilita l'uscita. `UP` e' accettato soltanto con BBC e
+docking test disabilitati. Impostare tutti i parametri prima di `UE=1`.
 
 ### 7.3 HFC diretto e WPT
 
@@ -456,13 +466,246 @@ Non usare comandi di configurazione durante il run.
 Non saltare direttamente al punto 60 V. Eseguire almeno un punto intermedio
 per confermare cablaggio, calibrazione e segno delle misure.
 
-## 9. Procedura B - HFC separato con alimentazione diretta del DCLINK
+## 9. Procedura B - BUCK UniPD closed-loop con emulatore batteria
 
-### 9.1 Obiettivo
+### 9.1 Obiettivo e stato
+
+Validare progressivamente:
+
+1. acquisizione fisica di VDC, VBATT, IL_A e IL_B;
+2. convenzione di segno delle correnti nel flusso `DCLINK -> VBATT`;
+3. monotonia duty/corrente;
+4. stabilita' del closed-loop UniPD con nodo VBATT rigido;
+5. limiti, trip e arresto.
+
+Questa procedura e' una campagna di prima validazione. Non esiste ancora una
+baseline BUCK closed-loop con emulatore dichiarata PASS.
+
+### 9.2 Collegamenti
+
+```text
+alimentatore DCLINK (+)
+  -> resistenza serie 4,6...4,8 ohm, se prevista dal punto
+  -> DCLINK+ scheda
+
+alimentatore DCLINK (-)
+  -> DCLINK- scheda
+
+VBATT+/- scheda
+  -> emulatore batteria in modalita' sink/CV
+```
+
+Requisiti:
+
+- HFC e bobine non coinvolti;
+- nessun carico da 1,2 kohm, 83 ohm o 2,2 ohm su VBATT;
+- nessun carico DCLINK non esplicitamente previsto;
+- emulatore capace di assorbire corrente alla tensione impostata;
+- polarita' verificata con strumenti prima del collegamento;
+- limite di corrente e limite di potenza dell'emulatore configurati;
+- multimetro su DCLINK scheda, non soltanto sull'uscita dell'alimentatore;
+- multimetro su VBATT;
+- scope su VBATT per il primo controllo, con eventuali canali aggiuntivi su
+  DCLINK o corrente se disponibili.
+
+La resistenza serie non simula la batteria: riduce la rigidita' della sorgente
+DCLINK e rende osservabile l'azione dell'anello esterno. Con alimentatore
+diretto e perfettamente rigido il BUCK non puo' modificare la tensione imposta
+dal generatore.
+
+### 9.3 Condizioni iniziali e limiti
+
+Prima del run devono essere dichiarati:
+
+- tensione CV dell'emulatore;
+- corrente massima assorbibile dall'emulatore;
+- potenza massima assorbibile;
+- tensione e corrente massime dell'alimentatore DCLINK;
+- riferimento DCLINK `UV`;
+- limite UniPD `UA`;
+- limite duty `UD`;
+- trip DCLINK `UX/UY`;
+- trip corrente rami `UC` e conferma `UN`;
+- durata;
+- temperatura massima ammessa;
+- azione manuale di arresto.
+
+Condizioni minime:
+
+```text
+VDC alimentatore > VBATT emulatore
+UV compatibile con la tensione DCLINK realmente ottenibile
+UA <= limite sink dell'emulatore
+UC > UA/2 per ramo con margine motivato
+trip VDC > UV ma inferiore ai limiti hardware del banco
+```
+
+`UV` e' il riferimento del DCLINK, non il setpoint VBATT. La tensione VBATT e'
+imposta dall'emulatore.
+
+### 9.4 Preparazione a potenza OFF
+
+Con DCLINK OFF, emulatore disabilitato e condensatori scarichi:
+
+```text
+FW?
+UE=0
+UB=0
+HFC=0
+WPTHFC=0
+WPT=0
+UH=2
+UP?
+UF=2
+UQ?
+```
+
+`UF=2` deve essere eseguito senza corrente. Il valore iniziale raccomandato e'
+`UP=0`; non invertire alcun canale senza una misura che dimostri la necessita'.
+
+Abilitare soltanto l'emulatore, mantenendo DCLINK OFF, e verificare:
+
+- VBATT UART coerente con emulatore e multimetro;
+- nessun assorbimento o erogazione inattesa;
+- DCLINK non si carica per backfeed oltre il valore passivo ammesso;
+- IL_A/IL_B raw e corretti prossimi allo zero.
+
+Se compare un percorso di energia inatteso, disabilitare l'emulatore e non
+proseguire.
+
+### 9.5 Verifica preliminare delle misure e del segno
+
+Impostare tutti i limiti mantenendo `UE=0`:
+
+```text
+UH=2
+UP=0
+UV=<riferimento_DCLINK_mV>
+UA=<limite_corrente_mA>
+UD=<duty_massimo_mpu>
+US=<passo_rampa_micro_pu>
+UX=<trip_DCLINK_mV>
+UC=<trip_corrente_ramo_mA>
+UN=<cicli_conferma>
+UF=1
+UQ?
+```
+
+Accendere DCLINK con limite di corrente basso e controllare `UQ?`.
+
+Prima del closed-loop:
+
+- VDC UART deve seguire il multimetro sul DCLINK scheda;
+- VBATT UART deve seguire l'emulatore;
+- i valori raw di IL_A/IL_B devono essere plausibili;
+- nessun latch deve essere attivo.
+
+Nel flusso BUCK UniPD si attende:
+
+```text
+I_bat_rif_min < 0
+I_bat_rif_max = 0
+I_L_A_rif < 0
+I_L_B_rif < 0
+```
+
+Se la corrente esterna dimostra trasferimento verso l'emulatore ma uno o
+entrambi i feedback hanno segno opposto, arrestare con `UE=0`, spegnere DCLINK,
+attendere la scarica e usare `UP=1`, `UP=2` o `UP=3` solo sul canale dimostrato
+invertito. Ripetere quindi la verifica da fermo. Non cambiare `UP` durante il
+run.
+
+### 9.6 Primo run closed-loop
+
+Il primo punto deve usare tensione, corrente e duty conservativi, definiti in
+base ai limiti reali dell'emulatore. Non riutilizzare automaticamente i valori
+BOOST.
+
+Sequenza:
+
+1. emulatore ON e stabile in sink/CV;
+2. alimentatore DCLINK ON;
+3. verificare VDC, VBATT e correnti con `UQ?`;
+4. armare scope e capture:
+
+```text
+CAP=1
+```
+
+5. abilitare:
+
+```text
+UE=1
+```
+
+6. osservare corrente DCLINK, corrente sink dell'emulatore, VDC e VBATT;
+7. arrestare al termine previsto:
+
+```text
+UE=0
+CAP=0
+```
+
+8. acquisire:
+
+```text
+UQ?
+CAPD?
+```
+
+9. spegnere DCLINK, verificare la scarica e solo successivamente disabilitare
+   o scollegare l'emulatore secondo la procedura del costruttore.
+
+### 9.7 Grandezze da registrare
+
+- tensione DCLINK all'alimentatore e sulla scheda;
+- caduta sulla resistenza serie;
+- VBATT impostata, misurata e acquisita;
+- corrente DCLINK massima e a regime;
+- corrente sink dell'emulatore massima e a regime;
+- `IL_A/IL_B` raw e corretti;
+- `I_L_A_rif/I_L_B_rif` ed errori;
+- duty raw, mapped, applied e ramped dei due rami;
+- overshoot, undershoot, settling e ripple;
+- latch e valori first-fault;
+- temperature;
+- durata.
+
+### 9.8 Criteri PASS/FAIL specifici
+
+PASS preliminare del punto:
+
+- tutte le tensioni fisiche e UART sono coerenti;
+- la corrente fluisce da DCLINK verso l'emulatore;
+- segno e ordine di grandezza di entrambi i rami sono coerenti;
+- aumento della richiesta produce aumento coerente della corrente;
+- nessun trip, saturazione persistente o oscillazione crescente;
+- il DCLINK converge o resta limitato intorno al riferimento compatibilmente
+  con la rigidita' della sorgente;
+- VBATT resta entro la regolazione dell'emulatore;
+- duty e correnti dei due rami non divergono.
+
+FAIL o run non validante:
+
+- polarita' corrente non dimostrata;
+- emulatore non in modalita' sink o in limitazione non prevista;
+- alimentatore in current limit non dichiarato;
+- DCLINK imposto rigidamente e incapace di reagire al controllo;
+- ciclo limite persistente;
+- duty a clamp senza raggiungere una condizione interpretabile;
+- backfeed con PWM disabilitato;
+- trip, sovratensione, sovracorrente o temperatura fuori limite.
+
+Un singolo punto stabile valida soltanto quel punto operativo e il pilotaggio
+BUCK non sincrono attuale. Non valida ancora la topologia complementare UniPD.
+
+## 10. Procedura C - HFC separato con alimentazione diretta del DCLINK
+
+### 10.1 Obiettivo
 
 Validare ponte HFC, bobine e rectifier passivo senza BOOST e BUCK.
 
-### 9.2 Collegamenti
+### 10.2 Collegamenti
 
 ```text
 Alimentatore -> DCLINK SOURCE
@@ -477,7 +720,7 @@ DCLINK LOAD -> carico resistivo
   - 83 ohm per la baseline da circa 10 W;
   - 2,2 ohm per la caratterizzazione ad alta corrente.
 
-### 9.3 Setup scope per la forma differenziale HFC
+### 10.3 Setup scope per la forma differenziale HFC
 
 Per misure a 85 kHz:
 
@@ -498,7 +741,7 @@ trigger              circa 10...20% sopra il valore passivo
 scala verticale      tale da includere almeno 1,5 volte il valore atteso
 ```
 
-### 9.4 Sequenza
+### 10.4 Sequenza
 
 Con DCLINK OFF:
 
@@ -532,7 +775,7 @@ Al termine:
 HFC=0
 ```
 
-### 9.5 Baseline validata con carico 83 ohm
+### 10.5 Baseline validata con carico 83 ohm
 
 | DCLINK SOURCE | Limite PSU | IDCLINK | VLOAD max indicativo | Esito |
 |---:|---:|---:|---:|---|
@@ -549,9 +792,9 @@ La forma validata presenta:
 
 Il punto a 16 V corrisponde a circa 10 W sul carico.
 
-## 10. Procedura C - Caratterizzazione HFC con phase shift manuale
+## 11. Procedura D - Caratterizzazione HFC con phase shift manuale
 
-### 10.1 Obiettivo
+### 11.1 Obiettivo
 
 Verificare il segno e l'autorita' della relazione:
 
@@ -561,7 +804,7 @@ phase shift -> ponte HFC -> bobine -> rectifier -> VLOAD/IDCLINK
 
 Il controllo UniPD calcola in shadow, ma non determina il phase shift fisico.
 
-### 10.2 Setup validato
+### 11.2 Setup validato
 
 ```text
 DCLINK SOURCE       20 V / limite 10 A
@@ -578,7 +821,7 @@ valori decrescenti = eccitazione crescente
 0 mpu = massimo comando del campo manuale
 ```
 
-### 10.3 Preparazione distribuita
+### 11.3 Preparazione distribuita
 
 SOURCE:
 
@@ -610,7 +853,7 @@ RADIO?
 
 SOURCE deve vedere ruolo remoto LOAD e link OK.
 
-### 10.4 Esecuzione di un punto
+### 11.4 Esecuzione di un punto
 
 Sul SOURCE:
 
@@ -632,7 +875,7 @@ Dopo la durata prevista:
 WPTHFC=0
 ```
 
-### 10.5 Valori di confronto validati
+### 11.5 Valori di confronto validati
 
 | WPTHFCPH | VLOAD | IDCLINK |
 |---:|---:|---:|
@@ -652,9 +895,9 @@ PASS:
 - `HPHY` coincide con il valore manuale;
 - fase automatica e phase shift fisico restano distinguibili.
 
-## 11. Procedura D - HFC closed-loop distribuito UniPD
+## 12. Procedura E - HFC closed-loop distribuito UniPD
 
-### 11.1 Avvertenza
+### 12.1 Avvertenza
 
 Questa procedura richiede:
 
@@ -666,7 +909,7 @@ Questa procedura richiede:
 Un run con `ITANK_MOD` sintetico verifica software, segno e sequenza, ma non
 valida la regolazione sulla corrente fisica.
 
-### 11.2 Preparazione
+### 12.2 Preparazione
 
 SOURCE:
 
@@ -709,7 +952,7 @@ WPT?
 RADIO?
 ```
 
-### 11.3 Avvio
+### 12.3 Avvio
 
 Armare lo scope e inviare sul SOURCE:
 
@@ -744,9 +987,9 @@ PASS minimo:
 Se la corrente LOAD e' sintetica, l'ultimo criterio non e' applicabile e il
 test deve essere classificato come test software, non validazione energetica.
 
-## 12. Procedura E - BOOST closed-loop + HFC integrati
+## 13. Procedura F - BOOST closed-loop + HFC integrati
 
-### 12.1 Obiettivo
+### 13.1 Obiettivo
 
 Validare la catena:
 
@@ -757,7 +1000,7 @@ VIN -> BOOST closed-loop -> DCLINK SOURCE -> HFC
 
 Il BUCK deve restare spento.
 
-### 12.2 Collegamenti
+### 13.2 Collegamenti
 
 SOURCE:
 
@@ -780,7 +1023,7 @@ Strumentazione:
 - multimetro e scope VLOAD;
 - temperatura carico.
 
-### 12.3 Punto iniziale validato
+### 13.3 Punto iniziale validato
 
 ```text
 VIN                    12 V
@@ -806,7 +1049,7 @@ duty applicato         circa 0,386...0,429
 trip                   nessuno
 ```
 
-### 12.4 Configurazione
+### 13.4 Configurazione
 
 Con VIN OFF e bus scarichi, sul SOURCE:
 
@@ -842,7 +1085,7 @@ VARS?
 Accendere VIN con tutti gli attuatori OFF. Verificare VIN, DCLINK passivo,
 correnti di ramo e assenza latch.
 
-### 12.5 Sequenza di avvio
+### 13.5 Sequenza di avvio
 
 Per il punto 12 V -> 16 V e' stata validata:
 
@@ -864,7 +1107,7 @@ I due comandi devono essere inviati consecutivamente, senza attesa deliberata.
 Se si usano due operatori o due terminali, concordare un unico comando di
 avvio.
 
-### 12.6 Sequenza di arresto
+### 13.6 Sequenza di arresto
 
 Arresto normale:
 
@@ -886,7 +1129,7 @@ HFC=0
 
 Poi spegnere immediatamente VIN e verificare la scarica.
 
-### 12.7 Punto integrato 20 V
+### 13.7 Punto integrato 20 V
 
 Configurazione provata:
 
@@ -917,9 +1160,9 @@ operativo di produzione.
 
 Per l'addestramento del personale partire da `UA=1,8 A`.
 
-## 13. Capture diagnostici
+## 14. Capture diagnostici
 
-### 13.1 Capture BOOST
+### 14.1 Capture BBC BOOST/BUCK
 
 ```text
 CAP=1       arma
@@ -930,7 +1173,7 @@ CAPD?       dump, solo a buffer congelato
 
 Non armare se e' gia' presente un fault latched.
 
-### 13.2 Capture WPT sincronizzato
+### 14.2 Capture WPT sincronizzato
 
 ```text
 WPTCAPDEC=<decimazione>
@@ -959,7 +1202,7 @@ Campi principali:
 Per un run di 5...10 s, una decimazione `213` conserva circa l'ultima finestra
 operativa utile senza generare traffico UART durante il controllo.
 
-## 14. Criteri PASS/FAIL comuni
+## 15. Criteri PASS/FAIL comuni
 
 ### PASS
 
@@ -985,7 +1228,7 @@ operativa utile senza generare traffico UART durante il controllo.
 - raggiungimento apparente del riferimento ottenuto usando dati sintetici non
   dichiarati.
 
-## 15. Scheda di registrazione
+## 16. Scheda di registrazione
 
 ```text
 Data/ora:
@@ -994,7 +1237,7 @@ Firmware SOURCE:
 Firmware LOAD:
 Scheda/controlCARD SOURCE:
 Scheda/controlCARD LOAD:
-Tipo test: BOOST / HFC diretto / HFC manuale / HFC CL / BOOST+HFC
+Tipo test: BOOST / BUCK / HFC diretto / HFC manuale / HFC CL / BOOST+HFC
 
 Cablaggio:
 Alimentatore e limiti:
@@ -1031,7 +1274,7 @@ Esito: PASS / FAIL / NON VALIDANTE
 Note:
 ```
 
-## 16. Chiusura del banco
+## 17. Chiusura del banco
 
 1. `UE=0` su entrambe le schede.
 2. `WPTHFC=0` sul SOURCE.
