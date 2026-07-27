@@ -95,12 +95,14 @@ float32_t CLLLC_ISR2_LoadingMax;
 float32_t CLLLC_ISR3_Loading;
 float32_t CLLLC_ISR3_LoadingAvg;
 
+#if Profiling
 uint32_t OBC_7_4KW_ISR2_nestingCounter;
 uint32_t OBC_7_4KW_ISR2_nests;
 uint32_t OBC_7_4KW_ISR2_nestsMax;
 float32_t OBC_7_4KW_ISR2_nestsAvg;
 float32_t OBC_7_4KW_ISR3_LoadingAvg_accountingForNesting;
 float32_t OBC_7_4KW_ISR3_LoadingAvgMax_accountingForNesting;
+#endif
 
 volatile uint32_t logger1[20];
 volatile float32_t logger2[20];
@@ -212,7 +214,9 @@ interrupt void ISR2_primToSecPowerFlow(void)
     IER |= 0x4;
     IER &= 0x4;
     EINT;
+#if Profiling
     OBC_7_4KW_ISR2_nestingCounter++;
+#endif
 
 //
 //GPIO write doesn't work when assigning GPIO to CLA, remove at compile time to make this clear
@@ -306,7 +310,9 @@ interrupt void ISR2_secToPrimPowerFlow(void)
     IER |= 0x4;
     IER &= 0x4;
     EINT;
+#if Profiling
     OBC_7_4KW_ISR2_nestingCounter++;
+#endif
 
 //
 //    TTPLPFC secToPrim Code
@@ -338,11 +344,13 @@ interrupt void ISR3(void)
 {
     EINT;
 
+#if Profiling
     //
     // Reset the ISR2 nesting counter to zero to log the number of nests
     // of ISR2 in ISR3
     //
     OBC_7_4KW_ISR2_nestingCounter = 0;
+#endif
 
 
     CLLLC_HAL_setProfilingGPIO3();
@@ -357,6 +365,7 @@ interrupt void ISR3(void)
 
     DINT;
 
+#if Profiling
     //
     // Log the number of nests, the max and compute the average number of nests
     //
@@ -372,6 +381,7 @@ interrupt void ISR3(void)
     //
     OBC_7_4KW_ISR2_nestsAvg = OBC_7_4KW_ISR2_nestsAvg +
            0.01f * (float32_t)(OBC_7_4KW_ISR2_nests - OBC_7_4KW_ISR2_nestsAvg);
+#endif
 
 
     CLLLC_HAL_clearISR3InterruputFlag();
