@@ -100,12 +100,15 @@ SECTIONS
    .switch          : > FLASH_BANK0_SEC1, ALIGN(4)
 
 #if defined(__TI_EABI__)
+   .uartStrings     : { wless_uart.obj(.const:.string) } > FLASH_BANK0_SEC7, ALIGN(4)
+   .uartCode        : { wless_uart.obj(.text:*) } >> FLASH_BANK0_SEC8 | FLASH_BANK0_SEC9, ALIGN(4)
    .init_array      : > FLASH_BANK0_SEC1,       ALIGN(4)
    .bss             : > RAMGS2
    .bss:output      : > RAMGS2
    .bss:cio         : > RAMGS2
    .data            : > RAMGS2
    .sysmem          : > RAMGS2
+   wptCapture       : > RAMGS3
    .const           : > FLASH_BANK0_SEC6       ALIGN(4)
 #else
    .pinit           : > FLASH_BANK0_SEC1       ALIGN(4)
@@ -175,8 +178,6 @@ GROUP
    .bss_cla         : > RAMLS0LS1
    controlVariables : > RAMLS0LS1
 
-    SFRA_F32_Data	: > RAMGS2, ALIGN = 64
- 	SFRA_Data		: > RAMGS2, ALIGN = 64
  	FPUmathTables	: > RAMGS3
 
    Cla1DataRam      : > RAMLS0LS1

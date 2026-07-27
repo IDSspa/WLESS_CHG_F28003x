@@ -122,10 +122,14 @@ float32_t TTPLPFC_ac_vol_senseOffset_pu;
 #pragma RETAIN (TTPLPFC_system_temp_pu)
 #pragma RETAIN (TTPLPFC_system_vref_165_pu)
 #pragma RETAIN (TTPLPFC_vbus2_pu)
+#pragma RETAIN (TTPLPFC_vBatAdcRaw)
+#pragma RETAIN (TTPLPFC_vBatSensed_Volts)
 #pragma RETAIN (TTPLPFC_vol2_pu)
 float32_t TTPLPFC_system_temp_pu;
 float32_t TTPLPFC_system_vref_165_pu;
 float32_t TTPLPFC_vbus2_pu;
+uint16_t TTPLPFC_vBatAdcRaw;
+float32_t TTPLPFC_vBatSensed_Volts;
 float32_t TTPLPFC_vol2_pu;
 
 //
@@ -468,9 +472,9 @@ float32_t TTPLPFC_olPhaseVect[TTPLPFC_SFRA_FREQ_LENGTH];
 float32_t TTPLPFC_freqVect[TTPLPFC_SFRA_FREQ_LENGTH];
 #endif
 
+#if TTPLPFC_SFRA_TYPE != TTPLPFC_SFRA_DISABLED
 SFRA_F32 TTPLPFC_sfra1;
 
-#if TTPLPFC_SFRA_TYPE != TTPLPFC_SFRA_DISABLED
 void TTPLPFC_setupSFRA(void)
 {
 #if    TTPLPFC_SFRA_TYPE == TTPLPFC_SFRA_CURRENT// current loop
@@ -858,6 +862,7 @@ void TTPLPFC_updateBoardStatus()
 }
 
 
+#if TTPLPFC_SFRA_TYPE != TTPLPFC_SFRA_DISABLED
 void TTPLPFC_runSFRABackGroundTasks(void)
 {
 
@@ -865,6 +870,7 @@ void TTPLPFC_runSFRABackGroundTasks(void)
     SFRA_GUI_runSerialHostComms(&TTPLPFC_sfra1);
 
 }
+#endif
 
 
 void TTPLPFC_setLabIndicatorVariable(void)

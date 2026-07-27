@@ -34,7 +34,6 @@ void OBC_7_4KW_setupProfiling();
 void OBC_7_4KW_setupGaNTempReading();
 void OBC_7_4KW_setupBoardProtection();
 void OBC_7_4KW_setupInterrupt();
-void OBC_7_4KW_setupSFRA();
 void OBC_7_4KW_setupTTPLPFC();
 void OBC_7_4KW_setupCLLLC();
 void OBC_7_4KW_enablePWMClkCounting();

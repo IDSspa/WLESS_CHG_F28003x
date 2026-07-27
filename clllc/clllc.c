@@ -62,6 +62,12 @@ float32_t CLLLC_gvPartialComputedValue;
 #pragma RETAIN (CLLLC_hfcReceiverTestEnable)
 #pragma RETAIN (CLLLC_hfcReceiverTestRun)
 #pragma RETAIN (CLLLC_hfcReceiverTestActive)
+#pragma RETAIN (CLLLC_hfcReceiverTestMode)
+#pragma RETAIN (CLLLC_hfcReceiverTestSyncEnable)
+#pragma RETAIN (CLLLC_hfcReceiverTestSyncConfigured)
+#pragma RETAIN (CLLLC_hfcReceiverTestReady)
+#pragma RETAIN (CLLLC_hfcReceiverTestInhibit)
+#pragma RETAIN (CLLLC_hfcReceiverTestMinITankModRaw)
 #pragma RETAIN (CLLLC_hfcReceiverTestDuty_pu)
 #pragma RETAIN (CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu)
 
@@ -71,6 +77,12 @@ int32_t CLLLC_clearTrip;
 volatile uint16_t CLLLC_hfcReceiverTestEnable;
 volatile uint16_t CLLLC_hfcReceiverTestRun;
 volatile uint16_t CLLLC_hfcReceiverTestActive;
+volatile uint16_t CLLLC_hfcReceiverTestMode;
+volatile uint16_t CLLLC_hfcReceiverTestSyncEnable;
+volatile uint16_t CLLLC_hfcReceiverTestSyncConfigured;
+volatile uint16_t CLLLC_hfcReceiverTestReady;
+volatile uint16_t CLLLC_hfcReceiverTestInhibit;
+volatile uint16_t CLLLC_hfcReceiverTestMinITankModRaw;
 volatile float32_t CLLLC_hfcReceiverTestDuty_pu;
 volatile float32_t CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu;
 
@@ -136,12 +148,147 @@ float32_t CLLLC_iPrimTankSensedCalIntercept_pu;
 float32_t CLLLC_iPrimTankSensedCalXvariable_pu;
 EMAVG CLLLC_iPrimTankSensedAvg_pu;
 
-uint16_t CLLLC_iPrimTankModSensedRaw;
-uint16_t CLLLC_iPrimTankPhsSensedRaw;
-float32_t CLLLC_iPrimTankModSensed_pu;
-float32_t CLLLC_iPrimTankPhsSensed_pu;
-float32_t CLLLC_iPrimTankModSensedOffset_pu;
-float32_t CLLLC_iPrimTankPhsSensedOffset_pu;
+void CLLLC_applyITankCmpssDebugSelection(void)
+{
+    if((CLLLC_iTankCmpssDebugCmpssNo != CLLLC_iTankCmpssDebugAppliedCmpssNo) ||
+       (CLLLC_iTankCmpssDebugMuxValue != CLLLC_iTankCmpssDebugAppliedMuxValue))
+    {
+        CLLLC_HAL_configureITankCmpssDebug(CLLLC_iTankCmpssDebugCmpssNo,
+                                           CLLLC_iTankCmpssDebugMuxValue);
+        CLLLC_iTankCmpssDebugAppliedCmpssNo = CLLLC_iTankCmpssDebugCmpssNo;
+        CLLLC_iTankCmpssDebugAppliedMuxValue = CLLLC_iTankCmpssDebugMuxValue;
+    }
+}
+
+void CLLLC_applyITankCmpssDebugThresholds(void)
+{
+    if((CLLLC_iTankCmpssDebugDacHigh !=
+            CLLLC_iTankCmpssDebugAppliedDacHigh) ||
+       (CLLLC_iTankCmpssDebugDacLow !=
+            CLLLC_iTankCmpssDebugAppliedDacLow))
+    {
+        CLLLC_HAL_setITankCmpssDebugThresholds(
+                                               CLLLC_iTankCmpssDebugAppliedCmpssNo,
+                                               CLLLC_iTankCmpssDebugDacHigh,
+                                               CLLLC_iTankCmpssDebugDacLow);
+        CLLLC_iTankCmpssDebugAppliedDacHigh = CLLLC_iTankCmpssDebugDacHigh;
+        CLLLC_iTankCmpssDebugAppliedDacLow = CLLLC_iTankCmpssDebugDacLow;
+    }
+}
+
+void CLLLC_applyHfcReceiverTestConfig(void)
+{
+    if(CLLLC_hfcReceiverTestMode >
+            CLLLC_HFC_RECEIVER_TEST_MODE_MANUAL_NEGATIVE)
+    {
+        CLLLC_hfcReceiverTestMode =
+                CLLLC_HFC_RECEIVER_TEST_MODE_MONITOR_ONLY;
+    }
+
+    if((CLLLC_hfcReceiverTestEnable == 0U) ||
+       (CLLLC_hfcReceiverTestSyncEnable == 0U) ||
+       ((CLLLC_hfcReceiverTestMode !=
+             CLLLC_HFC_RECEIVER_TEST_MODE_SYNC_RECTIFIER) &&
+        (CLLLC_hfcReceiverTestMode !=
+             CLLLC_HFC_RECEIVER_TEST_MODE_FORCE_POSITIVE) &&
+        (CLLLC_hfcReceiverTestMode !=
+             CLLLC_HFC_RECEIVER_TEST_MODE_FORCE_NEGATIVE)))
+    {
+        if(CLLLC_hfcReceiverTestSyncConfigured != 0U)
+        {
+            CLLLC_HAL_resetSynchronousRectifierTripAction(
+                    CLLLC_POWER_FLOW_SEC_PRIM);
+            CLLLC_hfcReceiverTestSyncConfigured = 0U;
+        }
+        CLLLC_hfcReceiverTestReady =
+                ((CLLLC_hfcReceiverTestEnable != 0U) &&
+                  (CLLLC_tripFlag.CLLLC_TripFlag_Enum == noTrip)) ? 1U : 0U;
+        if((CLLLC_hfcReceiverTestEnable != 0U) &&
+           ((CLLLC_hfcReceiverTestMode ==
+                  CLLLC_HFC_RECEIVER_TEST_MODE_FIXED_SAFE_PWM) ||
+            (CLLLC_hfcReceiverTestMode ==
+                  CLLLC_HFC_RECEIVER_TEST_MODE_MANUAL_POSITIVE) ||
+            (CLLLC_hfcReceiverTestMode ==
+                  CLLLC_HFC_RECEIVER_TEST_MODE_MANUAL_NEGATIVE)))
+        {
+            CLLLC_HAL_setupPWMpins(pwmSwState_synchronousRectification_fixedDuty);
+            CLLLC_pwmSwState.CLLLC_PwmSwState_Enum =
+                    pwmSwState_synchronousRectification_fixedDuty;
+            CLLLC_pwmSwStateActive.CLLLC_PwmSwState_Enum =
+                    pwmSwState_synchronousRectification_fixedDuty;
+        }
+        return;
+    }
+
+    if(CLLLC_hfcReceiverTestSyncConfigured == 0U)
+    {
+        CLLLC_HAL_setupSynchronousRectificationAction(
+                CLLLC_POWER_FLOW_SEC_PRIM);
+        CLLLC_HAL_setupPWMpins(pwmSwState_synchronousRectification_active);
+        CLLLC_pwmSwState.CLLLC_PwmSwState_Enum =
+                pwmSwState_synchronousRectification_active;
+        CLLLC_pwmSwStateActive.CLLLC_PwmSwState_Enum =
+                pwmSwState_synchronousRectification_active;
+        CLLLC_hfcReceiverTestSyncConfigured = 1U;
+    }
+
+    if(CLLLC_hfcReceiverTestMode ==
+            CLLLC_HFC_RECEIVER_TEST_MODE_FORCE_POSITIVE)
+    {
+        CLLLC_HAL_setITankCmpssDebugThresholds(
+                CLLLC_iTankCmpssDebugAppliedCmpssNo, 0U, 0U);
+        CLLLC_iTankCmpssDebugAppliedDacHigh = 0U;
+        CLLLC_iTankCmpssDebugAppliedDacLow = 0U;
+    }
+    else if(CLLLC_hfcReceiverTestMode ==
+            CLLLC_HFC_RECEIVER_TEST_MODE_FORCE_NEGATIVE)
+    {
+        CLLLC_HAL_setITankCmpssDebugThresholds(
+                CLLLC_iTankCmpssDebugAppliedCmpssNo, 4095U, 4095U);
+        CLLLC_iTankCmpssDebugAppliedDacHigh = 4095U;
+        CLLLC_iTankCmpssDebugAppliedDacLow = 4095U;
+    }
+
+    CLLLC_hfcReceiverTestReady =
+            (CLLLC_tripFlag.CLLLC_TripFlag_Enum == noTrip) ? 1U : 0U;
+}
+
+
+uint16_t CLLLC_unusedAdca5SensedRaw;
+uint16_t CLLLC_iTankSensedRaw;
+uint16_t CLLLC_iTankModSensedRaw;
+uint16_t CLLLC_iTankCmpssStatus;
+uint16_t CLLLC_iTankCmpssHigh;
+uint16_t CLLLC_iTankCmpssHighLatched;
+uint16_t CLLLC_iTankCmpssLow;
+uint16_t CLLLC_iTankCmpssLowLatched;
+uint16_t CLLLC_iTankCmpssDebugCmpssNo;
+uint16_t CLLLC_iTankCmpssDebugMuxValue;
+uint16_t CLLLC_iTankCmpssDebugAppliedCmpssNo;
+uint16_t CLLLC_iTankCmpssDebugAppliedMuxValue;
+uint16_t CLLLC_iTankCmpssDebugDacHigh;
+uint16_t CLLLC_iTankCmpssDebugDacLow;
+uint16_t CLLLC_iTankCmpssDebugAppliedDacHigh;
+uint16_t CLLLC_iTankCmpssDebugAppliedDacLow;
+uint16_t CLLLC_iTankCmpssDebugResetCounts;
+uint16_t CLLLC_iTankCmpssState;
+uint16_t CLLLC_iTankCmpssLastState;
+uint16_t CLLLC_iTankSensedRawMin;
+uint16_t CLLLC_iTankSensedRawMax;
+uint16_t CLLLC_iTankModSensedRawMin;
+uint16_t CLLLC_iTankModSensedRawMax;
+uint32_t CLLLC_iTankCmpssSampleCount;
+uint32_t CLLLC_iTankCmpssHighOnlyCount;
+uint32_t CLLLC_iTankCmpssLowOnlyCount;
+uint32_t CLLLC_iTankCmpssBothCount;
+uint32_t CLLLC_iTankCmpssNeitherCount;
+uint32_t CLLLC_iTankCmpssTransitionCount;
+float32_t CLLLC_unusedAdca5Sensed_pu;
+float32_t CLLLC_iTankSensed_pu;
+float32_t CLLLC_iTankModSensed_pu;
+float32_t CLLLC_unusedAdca5SensedOffset_pu;
+float32_t CLLLC_iTankSensedOffset_pu;
+float32_t CLLLC_iTankModSensedOffset_pu;
 
 float32_t CLLLC_vPrimSensed_Volts;
 float32_t CLLLC_vPrimSensed_pu;
@@ -271,9 +418,9 @@ float32_t CLLLC_plantPhaseVect[CLLLC_SFRA_FREQ_LENGTH];
 float32_t CLLLC_olMagVect[CLLLC_SFRA_FREQ_LENGTH];
 float32_t CLLLC_olPhaseVect[CLLLC_SFRA_FREQ_LENGTH];
 float32_t CLLLC_freqVect[CLLLC_SFRA_FREQ_LENGTH];
-#endif
 
 SFRA_F32 CLLLC_sfra1;
+#endif
 
 void CLLLC_updateFaultDebugSignals(void)
 {
@@ -502,12 +649,41 @@ void CLLLC_initGlobalVariables(void)
     EMAVG_config(&CLLLC_vSecSensedAvg_pu, 0.01f);
 
     CLLLC_iPrimSensed_Amps = 0;
-    CLLLC_iPrimTankModSensedRaw = 0;
-    CLLLC_iPrimTankPhsSensedRaw = 0;
-    CLLLC_iPrimTankModSensed_pu = 0.0f;
-    CLLLC_iPrimTankPhsSensed_pu = 0.0f;
-    CLLLC_iPrimTankModSensedOffset_pu = 0.0f;
-    CLLLC_iPrimTankPhsSensedOffset_pu = 0.0f;
+    CLLLC_unusedAdca5SensedRaw = 0;
+    CLLLC_iTankSensedRaw = 0;
+    CLLLC_iTankModSensedRaw = 0;
+    CLLLC_iTankCmpssStatus = 0;
+    CLLLC_iTankCmpssHigh = 0;
+    CLLLC_iTankCmpssHighLatched = 0;
+    CLLLC_iTankCmpssLow = 0;
+    CLLLC_iTankCmpssLowLatched = 0;
+    CLLLC_iTankCmpssDebugCmpssNo = 2;
+    CLLLC_iTankCmpssDebugMuxValue = 1;
+    CLLLC_iTankCmpssDebugAppliedCmpssNo = 2;
+    CLLLC_iTankCmpssDebugAppliedMuxValue = 1;
+    CLLLC_iTankCmpssDebugDacHigh = CLLLC_IPRIM_TANK_DACHVAL;
+    CLLLC_iTankCmpssDebugDacLow = CLLLC_IPRIM_TANK_DACLVAL;
+    CLLLC_iTankCmpssDebugAppliedDacHigh = CLLLC_IPRIM_TANK_DACHVAL;
+    CLLLC_iTankCmpssDebugAppliedDacLow = CLLLC_IPRIM_TANK_DACLVAL;
+    CLLLC_iTankCmpssDebugResetCounts = 0;
+    CLLLC_iTankCmpssState = 0;
+    CLLLC_iTankCmpssLastState = 0xFFFFU;
+    CLLLC_iTankSensedRawMin = 0xFFFFU;
+    CLLLC_iTankSensedRawMax = 0;
+    CLLLC_iTankModSensedRawMin = 0xFFFFU;
+    CLLLC_iTankModSensedRawMax = 0;
+    CLLLC_iTankCmpssSampleCount = 0;
+    CLLLC_iTankCmpssHighOnlyCount = 0;
+    CLLLC_iTankCmpssLowOnlyCount = 0;
+    CLLLC_iTankCmpssBothCount = 0;
+    CLLLC_iTankCmpssNeitherCount = 0;
+    CLLLC_iTankCmpssTransitionCount = 0;
+    CLLLC_unusedAdca5Sensed_pu = 0.0f;
+    CLLLC_iTankSensed_pu = 0.0f;
+    CLLLC_iTankModSensed_pu = 0.0f;
+    CLLLC_unusedAdca5SensedOffset_pu = 0.0f;
+    CLLLC_iTankSensedOffset_pu = 0.5f;
+    CLLLC_iTankModSensedOffset_pu = 0.0f;
     CLLLC_vPrimSensed_Volts = 0;
     CLLLC_iSecSensed_Amps = 0;
     CLLLC_vSecSensed_Volts = 0;
@@ -601,7 +777,13 @@ void CLLLC_initGlobalVariables(void)
     CLLLC_hfcReceiverTestEnable = 0;
     CLLLC_hfcReceiverTestRun = 0;
     CLLLC_hfcReceiverTestActive = 0;
-    CLLLC_hfcReceiverTestDuty_pu = 0.5f;
+    CLLLC_hfcReceiverTestMode = CLLLC_HFC_RECEIVER_TEST_MODE_MONITOR_ONLY;
+    CLLLC_hfcReceiverTestSyncEnable = 0;
+    CLLLC_hfcReceiverTestSyncConfigured = 0;
+    CLLLC_hfcReceiverTestReady = 0;
+    CLLLC_hfcReceiverTestInhibit = 0;
+    CLLLC_hfcReceiverTestMinITankModRaw = 0;
+    CLLLC_hfcReceiverTestDuty_pu = 0.1f;
     CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu = 0.0f;
 
 //    CLLLC_cla_task_counter = 0;
@@ -640,6 +822,7 @@ void CLLLC_updateBoardStatus(void)
     }
 }
 
+#if CLLLC_SFRA_TYPE != CLLLC_SFRA_DISABLED
 void CLLLC_runSFRABackGroundTasks(void)
 {
 
@@ -647,6 +830,7 @@ void CLLLC_runSFRABackGroundTasks(void)
     SFRA_GUI_runSerialHostComms(&CLLLC_sfra1);
 
 }
+#endif
 
 
 

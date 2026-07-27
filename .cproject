@@ -56,7 +56,6 @@
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/CLAmath"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/SFO"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/DCL"/>
-                                    <listOptionValue value="${PROJECT_ROOT}/libraries/sfra"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/utilities"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/power_measurement"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/spll"/>
@@ -99,7 +98,6 @@
                                     <listOptionValue value="${CG_TOOL_ROOT}/lib"/>
                                     <listOptionValue value="${PROJECT_ROOT}/device/driverlib/ccs/Release"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/CLAmath"/>
-                                    <listOptionValue value="${PROJECT_ROOT}/libraries/sfra"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/FPUfastRTS"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/SFO"/>
                                     <listOptionValue value="${CG_TOOL_ROOT}/include"/>
@@ -107,7 +105,6 @@
                                 <option id="com.ti.ccstudio.buildDefinitions.C2000_22.6.linkerID.LIBRARY.1885464319" superClass="com.ti.ccstudio.buildDefinitions.C2000_22.6.linkerID.LIBRARY" valueType="libs">
                                     <listOptionValue value="${COM_TI_DIGITAL_POWER_C2000WARE_SDK_SOFTWARE_PACKAGE_LIBRARIES}"/>
                                     <listOptionValue value="driverlib.lib"/>
-                                    <listOptionValue value="sfra_f64_tmu_eabi.lib"/>
                                     <listOptionValue value="F28003x_CLADATROM_Symbols_fpu32.lib"/>
                                     <listOptionValue value="cla1_math_library_datarom_fpu32_eabi.lib"/>
                                     <listOptionValue value="rts2800_fpu32_fast_supplement_eabi.lib"/>

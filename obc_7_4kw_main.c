@@ -42,6 +42,9 @@
 #include "clllc.h"
 #include "ttplpfc.h"
 #include "unipd/unipd_control.h"
+#include "wless_sm/wless_sm.h"
+#include "wless_uart/wless_uart.h"
+#include "wless_radio/wless_nrf24.h"
 
 //
 //---  State Machine Related ---
@@ -136,8 +139,6 @@ void main(void)
     OBC_7_4KW_setupBoardProtection();
     OBC_7_4KW_setupPWM();
 
-    OBC_7_4KW_setupSFRA();
-
 //    OBC_7_4KW_setupAEF();
     OBC_7_4KW_setupActiveSyncRectCLLLC();
 
@@ -159,6 +160,9 @@ void main(void)
     Alpha_State_Ptr = &A0;
     A_Task_Ptr = &A1;
     B_Task_Ptr = &B1;
+    WLESS_SM_INIT_IF_ENABLED();
+    WLESS_UART_INIT_IF_ENABLED();
+    WLESS_NRF24_INIT_IF_ENABLED();
 
     //
     // IDLE loop. Just sit and loop forever, periodically will branch into
@@ -223,6 +227,7 @@ interrupt void ISR2_primToSecPowerFlow(void)
     {
         OBC_7_4KW_runUnipdBbcControl();
     }
+    UNIPD_runTransferredPowerIntegration();
 #elif TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_LEGACY_PFC
 #if TTPLPFC_LAB == 1
     TTPLPFC_runISR1_lab1();
@@ -270,6 +275,8 @@ interrupt void ISR2_primToSecPowerFlow(void)
 #endif
 #endif
 
+    WLESS_SM_SOURCE_TICK_ISR_IF_ENABLED();
+
 //
 //GPIO write doesn't work when assigning GPIO to CLA, remove at compile time to make this clear
 //
@@ -313,6 +320,7 @@ interrupt void ISR2_secToPrimPowerFlow(void)
     CLLLC_runISR2_secToPrimPowerFlow();
 #endif
 
+    WLESS_SM_SOURCE_TICK_ISR_IF_ENABLED();
 
     CLLLC_HAL_resetProfilingGPIO2();
 
@@ -405,6 +413,9 @@ void B0(void)
         // jump to a B Task (B1,B2,B3,...)
         //
         (*B_Task_Ptr)();
+        CLLLC_applyITankCmpssDebugSelection();
+        CLLLC_applyITankCmpssDebugThresholds();
+        CLLLC_applyHfcReceiverTestConfig();
 
         vTimer1[0]++;           // virtual timer 1, instance 0 (spare)
     }
@@ -423,13 +434,10 @@ void B0(void)
 
 void A1(void)
 {
-#if TTPLPFC_SFRA_TYPE != TTPLPFC_SFRA_DISABLED
-    TTPLPFC_runSFRABackGroundTasks();
-#endif
-
-#if CLLLC_SFRA_TYPE != CLLLC_SFRA_DISABLED
-    CLLLC_runSFRABackGroundTasks();
-#endif
+    WLESS_SM_RUN_TICK_IF_ENABLED();
+    WLESS_SM_RUN_IF_ENABLED();
+    WLESS_UART_PROCESS_IF_ENABLED();
+    WLESS_NRF24_SERVICE_IF_ENABLED();
 
 #if CLLLC_SECONDARY_ENABLED == 1
     CLLLC_changeSynchronousRectifierPwmBehavior(CLLLC_POWER_FLOW);

@@ -235,20 +235,26 @@ void CLLLC_HAL_setupADC(void)
 #endif
 
     //
-    // Wireless primary resonant-current magnitude and phase. Both signals
-    // are sampled from EPWM5 SOCA at the ISR2 rate.
+    // Wireless resonant-current magnitude plus one unused/noise diagnostic
+    // channel. Both are sampled from EPWM5 SOCA at the ISR2 rate.
     //
-    ADC_setupSOC(CLLLC_IPRIM_TANK_MOD_ADC_MODULE,
-                 CLLLC_IPRIM_TANK_MOD_ADC_SOC_NO,
-                 CLLLC_IPRIM_TANK_MOD_ADC_TRIG_SOURCE,
-                 CLLLC_IPRIM_TANK_MOD_ADC_PIN,
-                 CLLLC_IPRIM_TANK_MOD_ADC_ACQPS_SYS_CLKS);
+    ADC_setupSOC(CLLLC_UNUSED_ADCA5_ADC_MODULE,
+                 CLLLC_UNUSED_ADCA5_ADC_SOC_NO,
+                 CLLLC_UNUSED_ADCA5_ADC_TRIG_SOURCE,
+                 CLLLC_UNUSED_ADCA5_ADC_PIN,
+                 CLLLC_UNUSED_ADCA5_ADC_ACQPS_SYS_CLKS);
 
-    ADC_setupSOC(CLLLC_IPRIM_TANK_PHS_ADC_MODULE,
-                 CLLLC_IPRIM_TANK_PHS_ADC_SOC_NO,
-                 CLLLC_IPRIM_TANK_PHS_ADC_TRIG_SOURCE,
-                 CLLLC_IPRIM_TANK_PHS_ADC_PIN,
-                 CLLLC_IPRIM_TANK_PHS_ADC_ACQPS_SYS_CLKS);
+    ADC_setupSOC(CLLLC_ITANK_ADC_MODULE,
+                 CLLLC_ITANK_ADC_SOC_NO,
+                 CLLLC_ITANK_ADC_TRIG_SOURCE,
+                 CLLLC_ITANK_ADC_PIN,
+                 CLLLC_ITANK_ADC_ACQPS_SYS_CLKS);
+
+    ADC_setupSOC(CLLLC_ITANK_MOD_ADC_MODULE,
+                 CLLLC_ITANK_MOD_ADC_SOC_NO,
+                 CLLLC_ITANK_MOD_ADC_TRIG_SOURCE,
+                 CLLLC_ITANK_MOD_ADC_PIN,
+                 CLLLC_ITANK_MOD_ADC_ACQPS_SYS_CLKS);
 
     //
     //VPRIM
@@ -463,6 +469,114 @@ void CLLLC_HAL_setupIprimSensedSignalChain(void)
 {
 }
 
+void CLLLC_HAL_setupITankCmpssDebug(void)
+{
+    CLLLC_HAL_configureITankCmpssDebug(2U, 1U);
+}
+
+void CLLLC_HAL_configureITankCmpssDebug(uint16_t cmpssNo, uint16_t muxValue)
+{
+    uint32_t base;
+    ASysCtl_CMPHPMuxSelect hpMux;
+    ASysCtl_CMPLPMuxSelect lpMux;
+
+    if(muxValue > 5U)
+    {
+        muxValue = 5U;
+    }
+
+    switch(cmpssNo)
+    {
+        case 2U:
+            base = CMPSS2_BASE;
+            hpMux = ASYSCTL_CMPHPMUX_SELECT_2;
+            lpMux = ASYSCTL_CMPLPMUX_SELECT_2;
+            break;
+        case 3U:
+            base = CMPSS3_BASE;
+            hpMux = ASYSCTL_CMPHPMUX_SELECT_3;
+            lpMux = ASYSCTL_CMPLPMUX_SELECT_3;
+            break;
+        case 4U:
+            base = CMPSS4_BASE;
+            hpMux = ASYSCTL_CMPHPMUX_SELECT_4;
+            lpMux = ASYSCTL_CMPLPMUX_SELECT_4;
+            break;
+        case 1U:
+        default:
+            base = CMPSS1_BASE;
+            hpMux = ASYSCTL_CMPHPMUX_SELECT_1;
+            lpMux = ASYSCTL_CMPLPMUX_SELECT_1;
+            cmpssNo = 1U;
+            break;
+    }
+
+    ASysCtl_selectCMPHPMux(hpMux, muxValue);
+    ASysCtl_selectCMPLPMux(lpMux, muxValue);
+
+    CMPSS_enableModule(base);
+    CMPSS_configDAC(base,
+                    CMPSS_DACVAL_SYSCLK | CMPSS_DACREF_VDDA |
+                    CMPSS_DACSRC_SHDW);
+    CMPSS_setDACValueHigh(base, CLLLC_IPRIM_TANK_DACHVAL);
+    CMPSS_setDACValueLow(base, CLLLC_IPRIM_TANK_DACLVAL);
+
+    // Match TI synchronous-rectifier polarity: high trips below zero,
+    // low trips above zero.
+    CMPSS_configHighComparator(base, CMPSS_INSRC_DAC | CMPSS_INV_INVERTED);
+    CMPSS_configLowComparator(base, CMPSS_INSRC_DAC);
+
+    CMPSS_configFilterHigh(base, 0, 1, 1);
+    CMPSS_configFilterLow(base, 0, 1, 1);
+    CMPSS_initFilterHigh(base);
+    CMPSS_initFilterLow(base);
+    CMPSS_configOutputsHigh(base,
+                            CMPSS_TRIP_LATCH | CMPSS_TRIPOUT_LATCH);
+    CMPSS_configOutputsLow(base,
+                           CMPSS_TRIP_LATCH | CMPSS_TRIPOUT_LATCH);
+    CMPSS_setHysteresis(base, CLLLC_CMPSS_HYSTERESIS);
+    CMPSS_clearFilterLatchHigh(base);
+    CMPSS_clearFilterLatchLow(base);
+}
+
+void CLLLC_HAL_setITankCmpssDebugThresholds(uint16_t cmpssNo,
+                                            uint16_t dacHigh,
+                                            uint16_t dacLow)
+{
+    uint32_t base;
+
+    if(dacHigh > 4095U)
+    {
+        dacHigh = 4095U;
+    }
+    if(dacLow > 4095U)
+    {
+        dacLow = 4095U;
+    }
+
+    switch(cmpssNo)
+    {
+        case 2U:
+            base = CMPSS2_BASE;
+            break;
+        case 3U:
+            base = CMPSS3_BASE;
+            break;
+        case 4U:
+            base = CMPSS4_BASE;
+            break;
+        case 1U:
+        default:
+            base = CMPSS1_BASE;
+            break;
+    }
+
+    CMPSS_setDACValueHigh(base, dacHigh);
+    CMPSS_setDACValueLow(base, dacLow);
+    CMPSS_clearFilterLatchHigh(base);
+    CMPSS_clearFilterLatchLow(base);
+}
+
 void CLLLC_HAL_setupBoardProtection()
 {
     //
@@ -646,6 +760,8 @@ void CLLLC_HAL_setupBoardProtection()
 #else
     #warning All CLLLC voltage and current comparator-based protections are disabled
 #endif
+
+    CLLLC_HAL_setupITankCmpssDebug();
 
     //
     // Enable the CBC Emulator Stop trip
@@ -1484,9 +1600,11 @@ void CLLLC_HAL_setupGPIOs()
     //
     // Setup secondary sensing diagnostic pin
     //
+#if CLLLC_SECONDARY_ENABLED == 1
     GPIO_setDirectionMode(CLLLC_GPIO_SECSENSEDIAG, GPIO_DIR_MODE_IN);
     GPIO_setQualificationMode(CLLLC_GPIO_SECSENSEDIAG, GPIO_QUAL_SYNC);
     GPIO_setPinConfig(CLLLC_GPIO_SECSENSEDIAG_PIN_CONFIG);
+#endif
 
     //
     // Setup GaN temperature mux select pins

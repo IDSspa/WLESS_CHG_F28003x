@@ -329,7 +329,13 @@ extern "C" {
 #define TTPLPFC_VAC_MAX_SENSE       (float32_t) 519.18
 #define TTPLPFC_VAC_L_N_MAX_SENSE   (float32_t) 508.68
 #define TTPLPFC_VDCBUS_MAX_SENSE    (float32_t) 508.68
-#define TTPLPFC_IL_MAX_SENSE       (float32_t) 30.303
+//
+// WLESS BBC branch current scaling:
+// V = 1.65 V + 0.04125 V/A * I, so the 0..3.3 V ADC span maps to +/-40 A.
+// The read path subtracts the 1.65 V offset and multiplies by 2, producing a
+// signed per-unit value where +/-1.0 corresponds to +/-40 A.
+//
+#define TTPLPFC_IL_MAX_SENSE       (float32_t) 40.0
 #define TTPLPFC_IL_TRIP_LIMIT        (float32_t) 30
 #define TTPLPFC_VAC_TYPICAL         (float32_t) 120
 

@@ -68,6 +68,11 @@ void CLLLC_HAL_setupDevice(void);
 void CLLLC_HAL_setupADC(void);
 void CLLLC_HAL_setupIprimSensedSignalChain(void);
 void CLLLC_HAL_setupBoardProtection(void);
+void CLLLC_HAL_setupITankCmpssDebug(void);
+void CLLLC_HAL_configureITankCmpssDebug(uint16_t cmpssNo, uint16_t muxValue);
+void CLLLC_applyITankCmpssDebugSelection(void);
+void CLLLC_applyITankCmpssDebugThresholds(void);
+void CLLLC_applyHfcReceiverTestConfig(void);
 void CLLLC_HAL_setupSynchronousRectificationAction(uint16_t powerFlow);
 void CLLLC_HAL_setupSynchronousRectificationActionDebug(uint16_t powerFlow);
 void CLLLC_HAL_setupTrigForADC(void);
@@ -108,6 +113,9 @@ void CLLLC_HAL_setupCMPSSHighLowLimit(uint32_t base1,
                                  uint16_t filterThreshold);
 void CLLLC_HAL_disablePWMClkCounting(void);
 void CLLLC_HAL_enablePWMClkCounting(void);
+void CLLLC_HAL_setITankCmpssDebugThresholds(uint16_t cmpssNo,
+                                            uint16_t dacHigh,
+                                            uint16_t dacLow);
 void CLLLC_HAL_setupPWMinUpDownCountModeWithoutDeadBand(uint32_t base1,
                                         float32_t pwmFreq,
                                         float32_t pwmSysClkFreq);
@@ -228,14 +236,21 @@ static inline uint32_t CLLLC_readSecSenseDiag()
 static inline int16_t CLLLC_HAL_readTripFlags(void)
 {
     int16_t tripIndicator;
-    if(XBAR_getInputFlagStatus(CLLLC_IPRIM_CMPSS_XBAR_FLAG1) == 1 ||
+    if(0)
+    {
+        tripIndicator = 0;
+    }
+#if CLLLC_BOARD_PROTECTION_IPRIM == 1
+    else if(XBAR_getInputFlagStatus(CLLLC_IPRIM_CMPSS_XBAR_FLAG1) == 1 ||
             XBAR_getInputFlagStatus(CLLLC_IPRIM_CMPSS_XBAR_FLAG2) == 1)
     {
         tripIndicator = 1;
         XBAR_clearInputFlag(CLLLC_IPRIM_CMPSS_XBAR_FLAG1);
         XBAR_clearInputFlag(CLLLC_IPRIM_CMPSS_XBAR_FLAG2);
     }
+#endif
 #if CLLLC_SECONDARY_ENABLED == 1
+#if CLLLC_BOARD_PROTECTION_ISEC == 1
     else if(XBAR_getInputFlagStatus(CLLLC_ISEC_CMPSS_XBAR_FLAG1) == 1 ||
             XBAR_getInputFlagStatus(CLLLC_ISEC_CMPSS_XBAR_FLAG2) == 1)
     {
@@ -243,11 +258,14 @@ static inline int16_t CLLLC_HAL_readTripFlags(void)
         XBAR_clearInputFlag(CLLLC_ISEC_CMPSS_XBAR_FLAG1);
         XBAR_clearInputFlag(CLLLC_ISEC_CMPSS_XBAR_FLAG2);
     }
+#endif
+#if CLLLC_BOARD_PROTECTION_VSEC == 1
     else if(XBAR_getInputFlagStatus(CLLLC_VSEC_CMPSS_XBAR_FLAG1) == 1)
     {
         tripIndicator = 4;
         XBAR_clearInputFlag(CLLLC_VSEC_CMPSS_XBAR_FLAG1);
     }
+#endif
 #endif
     else if(EPWM_getOneShotTripZoneFlagStatus(CLLLC_PRIM_LEG1_PWM_BASE) & 0x2)
     {
@@ -380,17 +398,19 @@ static inline void CLLLC_HAL_updatePWMDutyPeriodPhaseShift(
 
     HWREG(CLLLC_SEC_LEG1_PWM_BASE + EPWM_O_TBPHS) = phaseShiftPrimSec_ticks;
     HWREG(CLLLC_SEC_LEG2_PWM_BASE + EPWM_O_TBPHS) = phaseShiftPrimSec_ticks;
-
-//    HWREG(CLLLC_PRIM_LEG1_PWM_BASE + HRPWM_O_TBPHS) = phaseShiftPrimLegs_HiResticks;
-    HWREG(CLLLC_PRIM_LEG2_PWM_BASE + HRPWM_O_TBPHS) = phaseShiftPrimLegs_HiResticks;
-
-    EPWM_setCountModeAfterSync(CLLLC_PRIM_LEG2_PWM_BASE,
-                          (EPWM_SyncCountMode)phaseShiftPrimLegs_direction);
     EPWM_setCountModeAfterSync(CLLLC_SEC_LEG1_PWM_BASE,
                           (EPWM_SyncCountMode)phaseShiftSecLegs_direction);
     EPWM_setCountModeAfterSync(CLLLC_SEC_LEG2_PWM_BASE,
                           (EPWM_SyncCountMode)phaseShiftSecLegs_direction);
 #endif
+
+    /* Primary leg-to-leg phase control is required even when the removed TI
+     * secondary bridge is disabled.  Keeping this write inside the secondary
+     * compile-time guard left EPWM2 TBPHS at zero in the wireless build. */
+    HWREG(CLLLC_PRIM_LEG2_PWM_BASE + HRPWM_O_TBPHS) =
+            phaseShiftPrimLegs_HiResticks;
+    EPWM_setCountModeAfterSync(CLLLC_PRIM_LEG2_PWM_BASE,
+                          (EPWM_SyncCountMode)phaseShiftPrimLegs_direction);
 }
 
 #pragma FUNC_ALWAYS_INLINE(CLLLC_HAL_updatePWMDutyPeriodPhaseShift_PhaseShiftMode)

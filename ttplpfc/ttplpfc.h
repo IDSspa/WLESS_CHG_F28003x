@@ -112,13 +112,8 @@ extern "C" {
 #pragma FUNC_ALWAYS_INLINE(EPWM_setActionQualifierContSWForceAction)
 
 
-#ifndef __TMS320C28XX_CLA__
-#include "sfra_f32.h"
-#include "sfra_gui_scicomms_driverlib.h"
-#else
 #define SFRA_F32_inject(m)    m
 #define SFRA_F32_collect(m,n)
-#endif
 
 #define TTPLPFC_PWM_SWITCHING_NZC1 ((float32_t)0.02)
 #define TTPLPFC_PWM_SWITCHING_NZC2 ((float32_t)-0.02)
@@ -393,6 +388,8 @@ extern float32_t TTPLPFC_ac_vol_senseOffset_pu;
 extern float32_t TTPLPFC_system_temp_pu;
 extern float32_t TTPLPFC_system_vref_165_pu;
 extern float32_t TTPLPFC_vbus2_pu;
+extern uint16_t TTPLPFC_vBatAdcRaw;
+extern float32_t TTPLPFC_vBatSensed_Volts;
 
 //
 // Filtered DC bus measurement
@@ -846,17 +843,18 @@ extern float32_t TTPLPFC_timedRun_ms;
 extern float32_t TTPLPFC_timedRunCounter_ms;
 extern float32_t TTPLPFC_dutySlew_pu;
 
-#ifndef __TMS320C28XX_CLA__
+#if (TTPLPFC_SFRA_TYPE != TTPLPFC_SFRA_DISABLED) && !defined(__TMS320C28XX_CLA__)
 void TTPLPFC_setupSFRA();
-void TTPLPFC_globalVariablesInit();
-#else
 #endif
+void TTPLPFC_globalVariablesInit();
 
 //
 // the function prototypes
 //
 
+#if TTPLPFC_SFRA_TYPE != TTPLPFC_SFRA_DISABLED
 void TTPLPFC_runSFRABackGroundTasks(void);
+#endif
 
 void TTPLPFC_setLabIndicatorVariable(void);
 
@@ -912,6 +910,11 @@ static inline void TTPLPFC_read_systemSignals()
     TTPLPFC_system_temp_pu =  ((float32_t)(TTPLPFC_SYSTEM_TEMP_FB) * TTPLPFC_ADC_PU_SCALE_FACTOR);
     TTPLPFC_system_vref_165_pu =  ((float32_t)(TTPLPFC_SYSTEM_VREF_165_FB) * TTPLPFC_ADC_PU_SCALE_FACTOR);
     TTPLPFC_vbus2_pu =  ((float32_t)(TTPLPFC_VBUS2_FB) * TTPLPFC_ADC_PU_SCALE_FACTOR);
+    TTPLPFC_vBatAdcRaw = TTPLPFC_VBAT_FB;
+    // VIN_ADC ~= 0.02 * VBAT, 12-bit ADC with 3.3 V reference.
+    // This is the nominal schematic conversion; bench calibration is pending.
+    TTPLPFC_vBatSensed_Volts = (float32_t)TTPLPFC_vBatAdcRaw *
+            (3.3f / 4096.0f) / 0.02f;
 }
 
 #pragma FUNC_ALWAYS_INLINE(TTPLPFC_read_individualCurrent)

@@ -44,11 +44,11 @@ the modified board.
 | Battery/input voltage | `VIN_ADC ~= 0.02 * VIN` | Measurement range up to about 165 Vdc |
 | DC bus voltage | `VBUS ~= 0.0126 * DCLINK` | Firmware bench correction already made so `TTPLPFC_vBus_sensed_Volts` matches multimeter DCLINK |
 | Battery/bus current | `IBUS ~= 1.65 V + 0.03 V/A * I` | Based on low-side return current through the shunt/sense chain |
-| BBC phase current | `IDC_PHx ~= 1.65 V + 0.025 V/A * I_PHx` | Hall current sensors on the two BBC branches |
+| BBC phase current | `IDC_PHx ~= 1.65 V + 0.04125 V/A * I_PHx` | Bidirectional branch currents: 1.65 V = 0 A, 3.3 V = +40 A, 0 V = -40 A |
 | Coil current sensor | `ITANK_SENSOR ~= 1.65 V + 0.020 V/A * Icoil` | Sensor output before conditioning |
 | Coil current conditioned | `ITANK ~= 1.65 V + 0.025 V/A * Icoil` | ADC-facing signal after gain stage |
-| Coil current magnitude | `ITANK_MOD ~= (6/pi) * 0.025 V/A * |Icoil|` | DT Rev. 1.2 active-rectifier plus low-pass circuit; not believed implemented on current modified boards |
-| Coil phase | `ITANK_PHS ~= 3 V * (1 - dc)` | DT Rev. 1.2 phase-conditioning circuit; not believed implemented on current modified boards |
+| Coil current magnitude | `ITANK_MOD ~= (6/pi) * 0.025 V/A * |Icoil|` | Conditioned signal routed to J26.31 / ADCC11; 1 V ~= 21 A, ADC full-scale ~= 69.1 A |
+| Coil phase | `ITANK_PHS` | Not populated/valid on current modified boards; J26.28 / ADCA5 samples noise only because the resonance-frequency correction circuit is not yet included in this prototype |
 
 ## HFC PWM Nets
 
@@ -100,16 +100,16 @@ Bench status on docking:
 | DC bus voltage | `TTPLPFC_vBus_sensed_pu` | `ADCB4` | `v_dc` | Tested on docking and modified board, J26 pin 20 |
 | BBC inductor/current A | `TTPLPFC_iL1_sensed_pu` | `ADCB12` after current firmware swap | `i_l_a` | J26 pin 15 / `IDC_PH1`; sign/offset still to be calibrated on real board |
 | BBC inductor/current B | `TTPLPFC_iL2_sensed_pu` | `ADCA2` after current firmware swap | `i_l_b` | J26 pin 18 / `IDC_PH2`; sign/offset still to be calibrated on real board |
-| Coil current magnitude | `CLLLC_iPrimTankModSensed_pu` | `ADCA5` | `i_coil_loc` | Tested on docking, controlCARD pin 21 |
-| Coil current phase | `CLLLC_iPrimTankPhsSensed_pu` | `ADCC11` | not currently used by UniPD wrapper | Tested on docking, controlCARD pin 31 |
+| Coil current magnitude | `CLLLC_iTankModSensed_pu` | `ADCC11` | `i_coil_loc` | Modified-board mapping: `ITANK_MOD`, J26 pin 31 |
+| Unused/noise diagnostic | `CLLLC_unusedAdca5Sensed_pu` | `ADCA5` | not used | J26 pin 28 is not driven by a valid `ITANK_PHS` circuit |
 | Battery/bus current | TBD | TBD | not currently used by UniPD wrapper | DT Rev. 1.2: J26 pin 34 / `IBUS` |
 | Direct coil current | TBD | TBD | not currently used by UniPD wrapper | DT Rev. 1.2: J26 pin 37 / `ITANK` |
-| Battery/input voltage | TBD | TBD | `v_bat` candidate | DT Rev. 1.2: J26 pin 39 / `VIN_ADC` |
+| Battery/input voltage | `TTPLPFC_vBatSensed_Volts` | `ADCC7`, SOC13 | `v_bat` | DT Rev. 1.2: J26 pin 39 / `VIN_ADC`; controlCARD Rev.B schematic maps J26.39 to ADCA3/ADCB9/ADCC7; firmware selects ADCC7; nominal conversion pending bench calibration |
 
 Current software offsets:
 
-- `CLLLC_iPrimTankModSensedOffset_pu`
-- `CLLLC_iPrimTankPhsSensedOffset_pu`
+- `CLLLC_iTankModSensedOffset_pu`
+- `CLLLC_unusedAdca5SensedOffset_pu` diagnostic only, not a control offset
 
 Both default to zero and can be adjusted manually during bench calibration.
 
@@ -144,11 +144,11 @@ the MCU internals. Recommended table columns for the KiCad sheet:
 | `IDC_PH1` | 15 | TBD | `TTPLPFC_iL1_sensed_pu` / UniPD `i_l_a` | input | Docking ADC injection verified |
 | `IDC_PH2` | 18 | TBD | `TTPLPFC_iL2_sensed_pu` / UniPD `i_l_b` | input | Docking ADC injection verified |
 | `VBUS` | 20 | `ADCB4` | `TTPLPFC_vBus_sensed_pu` | input | Docking and board measurement verified |
-| `ITANK_PHS` | 28 | `ADCC11` | `CLLLC_iPrimTankPhsSensed_pu` | input | Docking ADC injection verified |
-| `ITANK_MOD` | 31 | `ADCA5` | `CLLLC_iPrimTankModSensed_pu` / UniPD `i_coil_loc` | input | Docking ADC injection verified |
+| unused / `ITANK_PHS` placeholder | 28 | `ADCA5` | `CLLLC_unusedAdca5Sensed_pu` | input | No valid phase-conditioning circuit on current boards; omitted until resonance-frequency correction is implemented |
+| `ITANK_MOD` | 31 | `ADCC11` | `CLLLC_iTankModSensed_pu` / UniPD `i_coil_loc` | input | Modified-board schematic mapping confirmed |
 | `IBUS` | 34 | TBD | candidate battery/bus current input | input | DT Rev. 1.2 confirmed, firmware mapping TBD |
 | `ITANK` | 37 | TBD | candidate direct coil-current input | input | DT Rev. 1.2 confirmed, firmware mapping TBD |
-| `VIN_ADC` | 39 | TBD | candidate UniPD `v_bat` input | input | DT Rev. 1.2 confirmed, firmware mapping TBD |
+| `VIN_ADC` | 39 | `ADCA3/ADCB9/ADCC7`; firmware: `ADCC7` | `TTPLPFC_vBatAdcRaw`, `TTPLPFC_vBatSensed_Volts`, UniPD `v_bat` | input | DT Rev. 1.2 and controlCARD Rev.B schematic confirmed; nominal `VIN_ADC ~= 0.02 * VBATT`, bench calibration pending |
 
 HFC fault aggregation noted from the original schematic: the active-low
 `CLLLC_PRIM_FAULT_LEG1_H`, `CLLLC_PRIM_FAULT_LEG2_H`,
@@ -166,10 +166,10 @@ currently only uses the aggregated fault line.
 - Verify physically mounted coil-compensation capacitors. DT Rev. 1.2 shows
   DNM options and states a target resonant capacitance of either 82.5 nF for
   the 45 uH design point or 66 nF for the 55-57 uH coupled-coil cases.
-- Map firmware ADC channels for `IBUS`, `ITANK`, and `VIN_ADC` if those signals
+- Map firmware ADC channels for `IBUS` and `ITANK` if those signals
   are required by the closed-loop controls.
-- Treat `ITANK_MOD` and `ITANK_PHS` as unavailable for real-board closed-loop
-  control until the DT Rev. 1.2 conditioning circuits are physically implemented
-  and verified.
+- Calibrate `ITANK_MOD` offset/scale on the modified boards before real-board
+  closed-loop control. Do not use ADCA5 / `ITANK_PHS` for rectifier control on
+  the current hardware.
 - Calibrate sign and offset of real-board current sensors before closed-loop
   tests.

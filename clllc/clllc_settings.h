@@ -138,7 +138,7 @@ extern "C" {
 //
 // SFRA running on CLLLC
 //
-#define CLLLC_SFRA_ALLOWED OBC_6_6KW_RUN_SFRA_ON_CLLLC
+#define CLLLC_SFRA_ALLOWED 0
 
 //
 // if 1, the CLLLC module used as a stand alone project
@@ -308,7 +308,13 @@ extern "C" {
 #define CLLLC_VSEC_OPTIMAL_RANGE_VOLTS ((float32_t)450)
 #define CLLLC_IPRIM_MAX_SENSE_AMPS    ((float32_t)55.000)
 #define CLLLC_ISEC_MAX_SENSE_AMPS     ((float32_t)33.951)
-#define CLLLC_IPRIM_TANK_MAX_SENSE_AMPS ((float32_t)34.375)
+//
+// WLESS ITANK_MOD scaling:
+// V_ITANK_MOD = (6/pi) * 0.025 V/A * |Icoil|.
+// Therefore 3.3 V full-scale corresponds to about 69.12 A peak.
+//
+#define CLLLC_ITANK_MOD_MAX_SENSE_AMPS ((float32_t)69.11504)
+#define CLLLC_IPRIM_TANK_MAX_SENSE_AMPS CLLLC_ITANK_MOD_MAX_SENSE_AMPS
 #define CLLLC_ISEC_TANK_MAX_SENSE_AMPS ((float32_t)42.375)
 
 #define CLLLC_VSEC_NOMINAL_VOLTS ((float32_t)350)

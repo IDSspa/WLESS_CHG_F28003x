@@ -20,7 +20,7 @@
 //
 //
 //
-#define OBC_7_4KW_RUN_SFRA_ON_PFC 1
+#define OBC_7_4KW_RUN_SFRA_ON_PFC 0
 #define OBC_7_4KW_RUN_SFRA_ON_CLLLC 0
 
 #endif //_USERSETTINGS_H

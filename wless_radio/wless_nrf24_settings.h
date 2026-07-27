@@ -1,0 +1,14 @@
+#ifndef WLESS_NRF24_SETTINGS_H_
+#define WLESS_NRF24_SETTINGS_H_
+
+#define WLESS_NRF24_ENABLE          1
+#define WLESS_NRF24_SPI_BITRATE     1000000UL
+
+#define WLESS_NRF24_GPIO_MOSI       16U
+#define WLESS_NRF24_GPIO_MISO       17U
+#define WLESS_NRF24_GPIO_IRQ        33U
+#define WLESS_NRF24_GPIO_SCLK       56U
+#define WLESS_NRF24_GPIO_CSN        57U
+#define WLESS_NRF24_GPIO_CE         61U
+
+#endif

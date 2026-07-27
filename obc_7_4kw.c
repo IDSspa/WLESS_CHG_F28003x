@@ -26,9 +26,6 @@
 //
 //--- System Related Globals ---
 // Put the variables that are specific to control in the below section
-// For example SFRA cannot run on CLA hence it must not be placed
-// in the below section, the control verification using SFRA can only
-// be carried out on the C28x
 // Control Variables
 //
 #pragma SET_DATA_SECTION("controlVariables")
@@ -280,32 +277,6 @@ void OBC_7_4KW_setupInterrupt()
     CLLLC_HAL_setupInterrupt(
             CLLLC_powerFlowStateActive.CLLLC_PowerFlowState_Enum);
 
-}
-
-void OBC_7_4KW_setupSFRA()
-{
-//
-// If both SFRA routines are enabled, throw an error
-//
-#if((TTPLPFC_SFRA_TYPE != TTPLPFC_SFRA_DISABLED) && (CLLLC_SFRA_TYPE != CLLLC_SFRA_DISABLED))
-#error "The SFRA option cannot be simultaneously enabled for both the PFC and CLLLC!"
-#endif
-
-//
-// If TTPLPFC routine is enabled, include the setup function
-//
-#if(TTPLPFC_SFRA_TYPE == TTPLPFC_SFRA_DISABLED)
-#else
-    TTPLPFC_setupSFRA();
-#endif
-
-//
-// If CLLLC routine is enabled, include the setup function
-//
-#if(CLLLC_SFRA_TYPE == CLLLC_SFRA_DISABLED)
-#else
-    CLLLC_setupSFRA();
-#endif
 }
 
 //
