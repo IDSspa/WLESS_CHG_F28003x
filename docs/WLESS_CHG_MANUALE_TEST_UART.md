@@ -3,7 +3,7 @@
 ## 1. Scopo
 
 Questo documento descrive l'esecuzione manuale, tramite UART, dei principali
-test di potenza disponibili nel firmware WLESS_CHG FW1024:
+test di potenza disponibili nel firmware WLESS_CHG FW1025:
 
 1. BOOST UniPD closed-loop con HFC disabilitato;
 2. BUCK UniPD closed-loop con emulatore batteria;
@@ -23,7 +23,7 @@ del laboratorio o una valutazione del rischio specifica del banco.
 
 Fatti consolidati:
 
-- firmware di riferimento: `FW=1024`;
+- firmware di riferimento: `FW=1025`;
 - il BOOST UniPD closed-loop e' stato validato separatamente fino a:
   - VIN = 60 V;
   - riferimento DCLINK = 90 V;
@@ -95,8 +95,8 @@ Configurazione ordinaria:
 
 | Funzione | Scheda/controlCARD | UART |
 |---|---|---|
-| SOURCE/VEHICLE | scheda SOURCE con immagine VEHICLE FW1024 | COM25 |
-| LOAD/STATION | scheda LOAD con immagine STATION FW1024 | COM26 |
+| SOURCE/VEHICLE | scheda SOURCE con immagine VEHICLE FW1025 | COM25 |
+| LOAD/STATION | scheda LOAD con immagine STATION FW1025 | COM26 |
 
 Configurazione UART:
 
@@ -216,7 +216,7 @@ RADIO?
 Risultati minimi attesi:
 
 ```text
-FW=1024
+FW=1025
 SOURCE: Role=SOURCE, State=SOURCE_ON oppure stato previsto dal test
 LOAD:   Role=LOAD, State=LOAD_ON oppure stato previsto dal test
 RadioLink=OK

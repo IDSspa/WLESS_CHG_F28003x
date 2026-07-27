@@ -13,7 +13,7 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1024;
+const int FIRMWARE_RELEASE = 1025;
 
 #define WLESS_UART_KEY_WH          (1U << 0)
 #define WLESS_UART_KEY_VB          (1U << 1)
@@ -97,7 +97,7 @@ static uint16_t WLESS_UART_iBat;
 static uint16_t WLESS_UART_iCoil;
 static uint16_t WLESS_UART_unipdTest;
 static uint16_t WLESS_UART_unipdMap;
-static uint16_t WLESS_UART_unipdDutyMaxMilli;
+static uint16_t WLESS_UART_unipdDutyMaxMilli = 350U;
 static uint16_t WLESS_UART_unipdVdcRef;
 static uint16_t WLESS_UART_unipdVdcRefConfig = 7U;
 static uint16_t WLESS_UART_unipdVdcRefMilli;
@@ -1219,7 +1219,12 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
                    (UNIPD_bbcDutyMappingMode == 1U)) ||
                   ((WLESS_UART_unipdHybridActive == 2U) &&
                    (UNIPD_bbcDutyMappingMode == 0U))) &&
-                 (UNIPD_bbcPowerOutputDutyMax_pu <= 0.95f) &&
+                 /*
+                  * UD is entered and range-checked as integer milli-pu.
+                  * Comparing its float conversion with 0.95f rejected the
+                  * nominal boundary UD=950 on the target.
+                  */
+                 (WLESS_UART_unipdDutyMaxMilli <= 950U) &&
                  (UNIPD_bbcVdcTripEnable != 0U) &&
                  (UNIPD_bbcVdcTripLatched == 0U) &&
                  (UNIPD_bbcILTripEnable != 0U) &&
@@ -1231,6 +1236,10 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
             UNIPD_bbcRampedDutyA_pu = 0.0f;
             UNIPD_bbcRampedDutyB_pu = 0.0f;
             UNIPD_bbcPowerOutputEnable = 1U;
+        }
+        else
+        {
+            WLESS_UART_sendString("UE REJECTED CONFIG\r\n");
         }
     }
 

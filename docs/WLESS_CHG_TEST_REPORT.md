@@ -4982,3 +4982,280 @@ fornisce il confronto richiesto fra comando calcolato e comando imposto.
 
 Al termine i buffer sono stati congelati, quindi HFC e' stato disabilitato
 senza fault. Il DCLINK SOURCE e' rimasto alimentato a 20 V.
+
+## 2026-07-27 - BUCK UniPD closed-loop su carico resistivo
+
+### Setup
+
+- scheda TI modificata 2 con controlCARD `VEHI0001`, firmware VEHICLE
+  `FW=1024`;
+- `WLESS_SM_POWER_CONTROL_ENABLE=0`, comando locale tramite UART;
+- DCLINK alimentato direttamente, senza resistenza serie, a 20 V con limite
+  1 A;
+- carico da 83 ohm collegato a VBATT;
+- resistenza da 1.2 kohm assente dal DCLINK;
+- nessun emulatore di batteria;
+- misura esterna di VBATT mediante multimetro e oscilloscopio;
+- `UH=2`, quindi ruolo UniPD LOAD/BUCK;
+- `UP=0`, nessuna inversione software delle correnti fisiche;
+- `UV=18000`, `US=500`, `UX=24000`, `UC=1000`, `UN=22`.
+
+La build inizialmente presente sulla controlCARD riportava `FW=1024` ma non
+riconosceva `UP?`. E' stata pertanto eseguita una clean build VEHICLE completa
+e la nuova immagine e' stata programmata su `VEHI0001`. La verifica UART
+successiva ha restituito:
+
+```text
+FW=1024
+UP=0
+```
+
+Con DCLINK OFF la diagnostica fisica ha riportato VDC e VBATT prossime a zero,
+nessun fault latched e offset delle correnti nell'ordine delle decine di mA.
+
+### Punti statici closed-loop
+
+Sono stati eseguiti tre punti crescenti. In tutti i casi il controllo e' stato
+abilitato mediante `UE=1` e arrestato mediante `UE=0`; non sono intervenuti
+trip.
+
+| UA | UD | VBATT | IDCLINK | VMAX | VMIN | P carico |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0.20 A | 0.700 | circa 15 V | 0.15 A | 16.9 V | -0.6 V | circa 2.7 W |
+| 0.30 A | 0.850 | 16.9 V | 0.18 A | 17.7 V | -0.6 V | circa 3.44 W |
+| 0.40 A | 0.949 | 19.57 V | 0.23 A | 20.4 V | -0.6 V | circa 4.61 W |
+
+Nel primo punto la diagnostica durante la conduzione ha riportato:
+
+```text
+VDC              = 20.082 V
+VBATT acquisita  = 15.186 V
+VBATT ADC        = 15.146 V
+Pbat_rif         = -2.857 W
+IL_A_rif         = circa -0.100 A
+IL_B_rif         = circa -0.100 A
+IL_A             = circa -0.117 A
+IL_B             = circa -0.048 A
+```
+
+Nel secondo punto:
+
+```text
+VDC              = 20.018 V
+VBATT acquisita  = 16.636 V
+VBATT ADC        = 16.596 V
+Pbat_rif         = -4.901 W
+IL_A_rif         = circa -0.149 A
+IL_B_rif         = circa -0.149 A
+IL_A             = circa -0.136 A
+IL_B             = circa -0.039 A
+duty applicati   = 0.850 / 0.850
+```
+
+Nel terzo punto:
+
+```text
+VDC              = 20.050 V
+VBATT acquisita  = 19.335 V
+VBATT ADC        = 19.255 V
+Pbat_rif         = -7.631 W
+IL_A_rif         = circa -0.193 A
+IL_B_rif         = circa -0.193 A
+IL_A             = circa -0.156 A
+IL_B             = circa -0.107 A
+duty applicati   = 0.949 / 0.949
+```
+
+Il bilancio esterno dell'ultimo punto e' risultato:
+
+```text
+Pin   = 20.05 V * 0.23 A        = circa 4.61 W
+Pload = (19.57 V)^2 / 83 ohm    = circa 4.61 W
+```
+
+Fatti:
+
+- il trasferimento DCLINK -> VBATT/carico e' stato osservato in tutti i punti;
+- UniPD ha generato riferimenti negativi in modalita' LOAD e le due correnti
+  fisiche hanno assunto segno negativo senza correzione software;
+- VBATT e potenza sono cresciute monotonicamente all'aumentare dei limiti;
+- le misure VBATT esterna e ADC sono risultate coerenti;
+- i bilanci di potenza esterni sono risultati coerenti con le risoluzioni
+  strumentali;
+- il valore minimo di circa -0.6 V e' stato ripetibile nei tre capture e non
+  e' cresciuto con potenza o duty;
+- a duty elevato la potenza richiesta da UniPD ha superato quella ottenibile
+  dal plant con DCLINK rigido, portando il comando al clamp.
+
+Esito: PASS per direzione del trasferimento, segni, acquisizioni fisiche,
+monotonicita' e bilancio energetico. La prova non valida la convergenza
+dell'anello esterno VDC, poiche' la tensione e' imposta rigidamente
+dall'alimentatore, e non sostituisce la prova con emulatore di batteria.
+
+### Verifica del limite UD
+
+Con `UA=400`, il comando `UD=950` e' stato accettato dal parser ma il successivo
+`UE=1` non ha abilitato l'uscita. `UQ?` ha confermato:
+
+```text
+PowerOutputEnable = 0
+BBC enabled       = 0
+duty rampato      = 0
+```
+
+Non e' stato restituito un messaggio UART di rifiuto. Impostando `UD=949`, il
+medesimo test ha abilitato correttamente il BUCK e ha raggiunto il terzo punto
+della tabella.
+
+Fatto: `UD=950` non consente l'abilitazione, mentre `UD=949` funziona.
+
+Inferenza da verificare nel codice: possibile confronto floating-point al
+bordo nominale 0.95. Il rifiuto silenzioso costituisce inoltre una criticita'
+diagnostica.
+
+### Capture sincronizzato dei due rami
+
+Con DCLINK a 20 V, carico 83 ohm, `UA=300` e `UD=850`, e' stato armato il
+buffer BBC:
+
+```text
+CAP ARM=1, FROZEN=0, COUNT=32, LEN=32, DEC=15, TRIGGER=0
+```
+
+Dopo oltre 5 s di conduzione il buffer e' stato congelato mediante `CAP=0`
+prima di `UE=0`. Il dump ha restituito 32 campioni sincronizzati a regime,
+senza trigger di fault.
+
+Valori medi:
+
+| Grandezza | Ramo A | Ramo B |
+|---|---:|---:|
+| riferimento corrente | -146 mA | -146 mA |
+| corrente misurata | -138 mA | -82.5 mA |
+| errore diagnostico | circa -12 mA | circa -75 mA |
+| duty richiesto | 0.952 | 0.995 |
+| duty applicato | 0.850 | 0.850 |
+
+Ulteriori intervalli:
+
+```text
+VDC       = 20.018 ... 20.114 V
+VBATT     = 16.596 ... 16.717 V
+Pbat_rif  = -4.982 ... -4.768 W
+```
+
+Fatti:
+
+- i riferimenti dei due rami sono uguali e negativi;
+- le correnti acquisite hanno entrambe segno negativo;
+- il ramo B misura una corrente di modulo inferiore rispetto al ramo A;
+- il controllore reagisce richiedendo sul ramo B un duty maggiore;
+- entrambi i duty applicati sono bloccati dal limite 0.850 e il controllore
+  non dispone quindi di ulteriore autorita' per riequilibrare i rami.
+
+Esito: PASS per capture sincronizzato, segni e direzione della reazione dei
+due controllori; PARTIAL per la condivisione della corrente.
+
+La causa dello sbilanciamento non e' determinata da questa prova. Restano da
+distinguere una differenza reale dei due percorsi di potenza, una differenza
+di offset/guadagno delle due misure di corrente oppure una combinazione delle
+due. La prova esclude un'inversione di segno come causa primaria.
+
+### Sweep del limite di corrente con duty massimo fisso
+
+Con DCLINK a 20 V, carico 83 ohm e `UD=949`, il solo limite direzionale `UA`
+e' stato variato fra 100 e 400 mA.
+
+| UA | VBATT/andamento | IDCLINK | Stato attuatore |
+|---:|---|---:|---|
+| 100 mA | oscillazione circa 9.8...16.6 V; VMAX 18.1 V | max 0.14 A | duty non saturi |
+| 200 mA | oscillazione circa 13.125...19.5 V | non acquisita | ramo B saturo |
+| 300 mA | plateau stabile; VBATT 19.55 V | 0.23 A | entrambi prossimi al clamp |
+| 400 mA | plateau stabile; VBATT 19.57 V | 0.23 A | entrambi al clamp |
+
+Nel punto `UA=100` la diagnostica ha riportato riferimenti nell'ordine di
+-41 mA per ramo, correnti circa -58 mA e -9 mA e duty circa 0.252 e 0.356.
+L'ampiezza dell'oscillazione e' risultata circa 6.8 Vpp.
+
+Nel punto `UA=200`:
+
+```text
+IL_A_rif / IL_B_rif = circa -90 mA
+IL_A                = circa -136 mA
+IL_B                = circa -68 mA
+duty A              = circa 0.63
+duty B              = 0.949, saturo
+oscillazione         = circa 6.38 Vpp
+```
+
+Nel punto `UA=300` il plateau e' risultato stabile con VBATT 19.55 V e
+IDCLINK 0.23 A; i duty applicati erano circa 0.944 e 0.949.
+
+Nel punto `UA=400`:
+
+```text
+VBATT               = 19.57 V
+IDCLINK             = 0.23 A
+IL_A_rif / IL_B_rif = circa -189 mA
+IL_A                = circa -214 mA
+IL_B                = circa -58 mA
+duty applicati      = 0.949 / 0.949
+```
+
+Fatti:
+
+- i punti 100 e 200 mA hanno mostrato oscillazioni di ampiezza simile;
+- a 300 e 400 mA il plateau e' risultato stabile;
+- i punti 300 e 400 mA hanno prodotto tensione e corrente esterne
+  sostanzialmente identiche;
+- la stabilita' dei due punti superiori coincide con il raggiungimento del
+  clamp di duty e non dimostra da sola un migliore bilanciamento degli anelli;
+- lo sbilanciamento fra le correnti A e B permane in tutti i punti.
+
+Esito: PARTIAL. Lo sweep individua una zona oscillante a basso limite di
+corrente e il limite del plant a partire da circa `UA=300 mA`. La causa dello
+sbilanciamento rimane da separare fra percorso di potenza e catena di misura.
+
+Durante la sequenza il comando digitato come `UE = 0` e' stato rifiutato con
+`Wrong command`; il convertitore e' rimasto attivo fino al successivo comando
+esatto `UE=0`. Il parser non accetta spazi interni ai comandi.
+
+### Retest del limite UD con firmware 1025
+
+Il confronto floating-point usato dal firmware 1024 per il consenso di
+abilitazione e' stato sostituito da una verifica del valore intero UART in
+milli-pu. La release e' stata incrementata a 1025.
+
+Dopo clean build, flash su `VEHI0001` e power-cycle:
+
+```text
+FW? -> FW=1025
+UP? -> UP=0
+```
+
+Dopo il ripristino delle configurazioni UART e l'azzeramento dei latch, il
+test con DCLINK circa 20 V, carico 83 ohm, `UA=400` e `UD=950` ha riportato:
+
+```text
+VDC                = 20.082 V
+VBATT              = 19.376 V
+PowerOutputEnable  = 1
+BBC enabled        = 1
+duty applicati     = 0.950 / 0.950
+duty rampati       = 0.950 / 0.950
+fault VDC/IL       = 0 / 0
+```
+
+Le misure esterne hanno riportato:
+
+```text
+VBATT multimetro = 19.6 V
+IDCLINK          = 0.23 A
+VMAX scope       = 20.4 V
+Vpp complessivo  = 21.1 V
+plateau          = stabile
+```
+
+Il run e' stato arrestato mediante `UE=0`.
+
+Esito: PASS. Il limite nominale `UD=950` e' ora utilizzabile.
