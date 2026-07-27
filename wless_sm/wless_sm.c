@@ -7,6 +7,7 @@
 #if WLESS_SM_POWER_CONTROL_ENABLE == 1
 #include "clllc.h"
 #include "ttplpfc.h"
+#include "unipd/unipd_control.h"
 #endif
 
 #pragma RETAIN(WLESS_SM_state)
@@ -312,6 +313,98 @@ static WLESS_SM_WptState WLESS_SM_runWptDecision(void)
     return WLESS_SM_WPT_RUN;
 }
 
+#if WLESS_SM_POWER_CONTROL_ENABLE == 1
+/*
+ * Prospective FSM -> UniPD power-control integration.
+ *
+ * IMPORTANT:
+ * - this code is excluded from the current FW while
+ *   WLESS_SM_POWER_CONTROL_ENABLE remains 0;
+ * - it deliberately does not overwrite UART-configurable references, clamps
+ *   or ramp parameters;
+ * - every INTEGRATION TODO below must be reviewed before hardware enable.
+ */
+static void WLESS_SM_disableUnipdPowerPath(void)
+{
+    /*
+     * Stop the active actuators first, then clear the integration state.
+     * UNIPD_disableWptHfcActuator() also forces an OST trip on the HFC PWM.
+     */
+    UNIPD_bbcPowerOutputEnable = 0U;
+    TTPLPFC_bbcDockTestEnable = 0;
+    TTPLPFC_BBC_disable();
+    UNIPD_disableWptHfcActuator();
+    UNIPD_wptIntegrationEnable = 0U;
+    UNIPD_resetControlStatesCommand = 1U;
+
+    /*
+     * INTEGRATION TODO: validate whether an active DCLINK discharge command is
+     * required here. At present OFF removes power conversion but does not
+     * guarantee a controlled discharge of the DC-link capacitors.
+     */
+}
+
+static void WLESS_SM_prepareUnipdBbcPath(void)
+{
+    /*
+     * The docking-test path has ISR precedence over the UniPD BBC path and
+     * must therefore be disabled before granting authority to UniPD.
+     */
+    TTPLPFC_bbcDockTestEnable = 0;
+    TTPLPFC_bbcDockTestLegMode = TTPLPFC_BBC_DOCK_TEST_LEG_DISABLED;
+    TTPLPFC_BBC_disable();
+
+    UNIPD_disableWptHfcActuator();
+    UNIPD_wptIntegrationEnable = 1U;
+    UNIPD_resetControlStatesCommand = 1U;
+    UNIPD_bbcPowerOutputEnable = 1U;
+
+    /*
+     * The ISR selects BOOST or BUCK from the UniPD tx_1_rx_0 input, which is
+     * derived from WLESS_SM_localRole. Do not select the hardware mode here:
+     * there must be one authority for the role -> converter-mode mapping.
+     *
+     * INTEGRATION TODO: define the policy for clearing latched VDC/IL faults.
+     * They are intentionally not cleared automatically on a state transition.
+     *
+     * INTEGRATION TODO: validate references, current limits, duty clamp and
+     * ramp parameters before setting UNIPD_bbcPowerOutputEnable.
+     */
+}
+
+static void WLESS_SM_enableUnipdSourceHfc(void)
+{
+    /*
+     * Reproduce the already tested automatic UniPD HFC actuator preparation,
+     * but leave calculation of the phase shift to
+     * UNIPD_runTransferredPowerIntegration().
+     */
+    UNIPD_wptHfcActuatorFault = 0U;
+
+    CLLLC_hfcReceiverTestDuty_pu = 0.5f;
+    CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu = 0.5f;
+    CLLLC_pwmPhaseShiftPrimLegsRef_pu = 0.5f;
+    CLLLC_pwmPhaseShiftPrimLegs_pu = 0.5f;
+    CLLLC_hfcReceiverTestMode =
+            CLLLC_HFC_RECEIVER_TEST_MODE_FIXED_SAFE_PWM;
+    CLLLC_hfcReceiverTestSyncEnable = 0U;
+    CLLLC_hfcReceiverTestEnable = 1U;
+    CLLLC_hfcReceiverTestRun = 1U;
+    CLLLC_clearTrip = 1;
+    UNIPD_wptHfcActuatorEnable = 1U;
+
+    /*
+     * INTEGRATION TODO: before enabling this path on hardware, validate:
+     * - SOURCE local role, LOAD remote role and radio link;
+     * - availability/validity of local and remote ITANK_MOD;
+     * - SOURCE synthetic-current policy while its physical channel is not
+     *   validated;
+     * - BOOST-ready sequencing and the minimum DCLINK condition;
+     * - HFC trip-clear policy.
+     */
+}
+#endif
+
 static void WLESS_SM_setPowerCommand(WLESS_SM_PowerCommand command)
 {
     WLESS_SM_powerCommand = command;
@@ -319,27 +412,42 @@ static void WLESS_SM_setPowerCommand(WLESS_SM_PowerCommand command)
 #if WLESS_SM_POWER_CONTROL_ENABLE == 1
     if(command == WLESS_SM_POWER_CMD_OFF)
     {
-        TTPLPFC_bbcDockTestEnable = 0;
-        TTPLPFC_bbcEnabled = 0;
-        CLLLC_hfcReceiverTestRun = 0U;
-        CLLLC_hfcReceiverTestEnable = 0U;
+        WLESS_SM_disableUnipdPowerPath();
     }
-    else if((command == WLESS_SM_POWER_CMD_SOURCE_PRECHARGE) ||
-            (command == WLESS_SM_POWER_CMD_SOURCE_ON))
+    else if(command == WLESS_SM_POWER_CMD_SOURCE_PRECHARGE)
     {
-        TTPLPFC_bbcDockTestMode = TTPLPFC_BBC_MODE_BOOST;
-        TTPLPFC_bbcDockTestLegMode = TTPLPFC_BBC_DOCK_TEST_LEG_BOTH;
-        TTPLPFC_bbcDockTestEnable = 1;
-        CLLLC_clearTrip = 1;
+        /*
+         * SOURCE precharge: run the BBC UniPD path in BOOST mode while HFC
+         * remains tripped. The FSM will request SOURCE_ON only after its
+         * VBUS-ready condition.
+         */
+        WLESS_SM_prepareUnipdBbcPath();
     }
-    else if((command == WLESS_SM_POWER_CMD_LOAD_PRECHARGE) ||
-            (command == WLESS_SM_POWER_CMD_LOAD_ON))
+    else if(command == WLESS_SM_POWER_CMD_SOURCE_ON)
     {
-        TTPLPFC_bbcDockTestMode = TTPLPFC_BBC_MODE_BUCK;
-        TTPLPFC_bbcDockTestLegMode = TTPLPFC_BBC_DOCK_TEST_LEG_BOTH;
-        TTPLPFC_bbcDockTestEnable = 1;
-        CLLLC_hfcReceiverTestRun = 0U;
-        CLLLC_hfcReceiverTestEnable = 0U;
+        /*
+         * Keep the BOOST loop running and add the transmitting HFC actuator.
+         * Do not reset the BBC controller here: it has already reached the
+         * precharge operating point.
+         */
+        WLESS_SM_enableUnipdSourceHfc();
+    }
+    else if(command == WLESS_SM_POWER_CMD_LOAD_PRECHARGE)
+    {
+        /*
+         * LOAD precharge: UniPD selects BUCK from the local role. The HFC
+         * bridge remains disabled because the LOAD rectifier is passive.
+         */
+        WLESS_SM_prepareUnipdBbcPath();
+    }
+    else if(command == WLESS_SM_POWER_CMD_LOAD_ON)
+    {
+        /*
+         * Keep the BUCK UniPD loop and transferred-power calculation active.
+         * They were enabled by LOAD_PRECHARGE; no active receiver bridge
+         * command is issued.
+         */
+        UNIPD_disableWptHfcActuator();
     }
 #endif
 }
