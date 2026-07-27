@@ -304,9 +304,53 @@ static inline void TTPLPFC_HAL_updatePWM(uint32_t base, float32_t duty)
 
 }
 
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_HAL_setupBBCComplementaryPWM)
+static inline void TTPLPFC_HAL_setupBBCComplementaryPWM(uint32_t base)
+{
+    //
+    // UniPD synchronous BBC topology:
+    //   EPWMxA = high-side command, duty delta;
+    //   EPWMxB = complementary low-side command, duty 1-delta.
+    //
+    // Both outputs use EPWMxA as the dead-band source. RED delays the A rising
+    // edge and FED, configured active-low, creates the complementary B output
+    // with a non-overlap interval. The trip-zone configuration remains common
+    // to A and B and therefore forces both gate commands low on OST/CBC.
+    //
+    HWREGH(base + EPWM_O_AQCTLA) = 0;
+    HWREGH(base + EPWM_O_AQCTLB) = 0;
+
+    EPWM_setActionQualifierAction(base, EPWM_AQ_OUTPUT_A,
+            EPWM_AQ_OUTPUT_LOW, EPWM_AQ_OUTPUT_ON_TIMEBASE_UP_CMPA);
+    EPWM_setActionQualifierAction(base, EPWM_AQ_OUTPUT_A,
+            EPWM_AQ_OUTPUT_HIGH, EPWM_AQ_OUTPUT_ON_TIMEBASE_DOWN_CMPA);
+
+    EPWM_setRisingEdgeDeadBandDelayInput(base, EPWM_DB_INPUT_EPWMA);
+    EPWM_setFallingEdgeDeadBandDelayInput(base, EPWM_DB_INPUT_EPWMA);
+    EPWM_setDeadBandDelayPolarity(base, EPWM_DB_RED,
+                                  EPWM_DB_POLARITY_ACTIVE_HIGH);
+    EPWM_setDeadBandDelayPolarity(base, EPWM_DB_FED,
+                                  EPWM_DB_POLARITY_ACTIVE_LOW);
+    EPWM_setRisingEdgeDelayCount(base,
+                  (uint16_t)TTPLPFC_HIGH_FREQ_PWM_DEADBAND_RED_COUNT);
+    EPWM_setFallingEdgeDelayCount(base,
+                  (uint16_t)TTPLPFC_HIGH_FREQ_PWM_DEADBAND_FED_COUNT);
+    EPWM_setDeadBandDelayMode(base, EPWM_DB_RED, true);
+    EPWM_setDeadBandDelayMode(base, EPWM_DB_FED, true);
+
+    //
+    // Release both AQ outputs. The caller keeps OST asserted while changing
+    // topology and clears it only after the compare value has been written.
+    //
+    HWREGH(base + EPWM_O_AQCSFRC) = 0x00;
+}
+
 #pragma FUNC_ALWAYS_INLINE(TTPLPFC_HAL_setupBBCBoostLowSidePWM)
 static inline void TTPLPFC_HAL_setupBBCBoostLowSidePWM(uint32_t base)
 {
+#if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
+    TTPLPFC_HAL_setupBBCComplementaryPWM(base);
+#else
     //
     // BBC boost bench-test mode: keep the high-side command low and drive the
     // low-side command directly with CMPA. This avoids reusing the legacy PFC
@@ -328,11 +372,15 @@ static inline void TTPLPFC_HAL_setupBBCBoostLowSidePWM(uint32_t base)
     // Force EPWMxA low continuously. Leave EPWMxB controlled by AQCTLB.
     //
     HWREGH(base + EPWM_O_AQCSFRC) = 0x01;
+#endif
 }
 
 #pragma FUNC_ALWAYS_INLINE(TTPLPFC_HAL_setupBBCBuckHighSidePWM)
 static inline void TTPLPFC_HAL_setupBBCBuckHighSidePWM(uint32_t base)
 {
+#if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
+    TTPLPFC_HAL_setupBBCComplementaryPWM(base);
+#else
     //
     // BBC buck bench-test mode: drive the high-side command directly with
     // CMPA and keep the low-side command low. This is the conservative,
@@ -355,6 +403,7 @@ static inline void TTPLPFC_HAL_setupBBCBuckHighSidePWM(uint32_t base)
     // Leave EPWMxA controlled by AQCTLA. Force EPWMxB low continuously.
     //
     HWREGH(base + EPWM_O_AQCSFRC) = 0x04;
+#endif
 }
 
 #pragma FUNC_ALWAYS_INLINE(TTPLPFC_HAL_enableHighSideHFPWM)

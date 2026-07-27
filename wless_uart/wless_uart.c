@@ -1187,8 +1187,16 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
             WLESS_UART_applyUnipdDirectionalCurrentLimit();
             UNIPD_bbcSyntheticInputs.tx_1_rx_0 =
                     (WLESS_UART_unipdHybridActive == 1U) ? 1U : 0U;
+#if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
+            //
+            // In synchronous mode UniPD delta always drives the high side;
+            // EPWM dead-band hardware produces the low-side complement.
+            //
+            UNIPD_bbcDutyMappingMode = 0U;
+#else
             UNIPD_bbcDutyMappingMode =
                     (WLESS_UART_unipdHybridActive == 1U) ? 1U : 0U;
+#endif
             UNIPD_bbcSyntheticValidMask = UNIPD_BBC_REQUIRED_SIGNAL_MASK;
             UNIPD_bbcSyntheticOverrideMask =
                     UNIPD_BBC_REQUIRED_SIGNAL_MASK &
@@ -1215,10 +1223,14 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         else if(((WLESS_UART_unipdHybridActive == 1U) ||
                  (WLESS_UART_unipdHybridActive == 2U)) &&
                  (UNIPD_bbcSyntheticTestEnable != 0U) &&
+#if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
+                 (UNIPD_bbcDutyMappingMode == 0U) &&
+#else
                  (((WLESS_UART_unipdHybridActive == 1U) &&
                    (UNIPD_bbcDutyMappingMode == 1U)) ||
                   ((WLESS_UART_unipdHybridActive == 2U) &&
                    (UNIPD_bbcDutyMappingMode == 0U))) &&
+#endif
                  /*
                   * UD is entered and range-checked as integer milli-pu.
                   * Comparing its float conversion with 0.95f rejected the

@@ -571,6 +571,20 @@ static inline int32_t TTPLPFC_BBC_runDockingTest(void)
         return 0;
     }
 
+#if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
+    //
+    // The open-loop docking ramp is defined as active-switch duty. It is not
+    // a safe startup policy for both directions of a synchronous half bridge.
+    // Complementary operation is therefore restricted to the closed-loop
+    // UniPD path until a dedicated synchronous docking sequence is validated.
+    //
+    TTPLPFC_bbcDockTestEnable = 0;
+    TTPLPFC_bbcDockTestDutyRamp1_pu = 0.0f;
+    TTPLPFC_bbcDockTestDutyRamp2_pu = 0.0f;
+    TTPLPFC_BBC_disable();
+    return 1;
+#endif
+
     if(TTPLPFC_vBus_sensed_Volts > TTPLPFC_bbcDockTestVbusMax_Volts)
     {
         TTPLPFC_bbcDockTestVbusMax_Volts = TTPLPFC_vBus_sensed_Volts;

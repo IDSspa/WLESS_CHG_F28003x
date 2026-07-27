@@ -1388,6 +1388,15 @@ void OBC_7_4KW_runUnipdBbcControl(void)
         const float dutyMax = unipd_clampf(UNIPD_bbcPowerOutputDutyMax_pu,
                                            0.0f,
                                            0.95f);
+#if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
+        //
+        // UniPD defines delta as the high-side duty for both power-flow
+        // directions. The dead-band module generates the complementary
+        // low-side command. Do not apply the asynchronous BOOST 1-delta map.
+        //
+        UNIPD_bbcMappedDutyA_pu = UNIPD_bbcOutput.duty_cycle_pwm_a;
+        UNIPD_bbcMappedDutyB_pu = UNIPD_bbcOutput.duty_cycle_pwm_b;
+#else
         UNIPD_bbcMappedDutyA_pu =
                 (UNIPD_bbcDutyMappingMode != 0U) ?
                 (1.0f - UNIPD_bbcOutput.duty_cycle_pwm_a) :
@@ -1396,6 +1405,7 @@ void OBC_7_4KW_runUnipdBbcControl(void)
                 (UNIPD_bbcDutyMappingMode != 0U) ?
                 (1.0f - UNIPD_bbcOutput.duty_cycle_pwm_b) :
                 UNIPD_bbcOutput.duty_cycle_pwm_b;
+#endif
 
         UNIPD_bbcAppliedDutyA_pu =
                 unipd_clampf(UNIPD_bbcMappedDutyA_pu, 0.0f, dutyMax);
@@ -1404,6 +1414,16 @@ void OBC_7_4KW_runUnipdBbcControl(void)
 
         if(UNIPD_bbcPowerOutputEnable != 0U)
         {
+#if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
+            //
+            // Ramping the high-side duty from zero is not a safe soft start
+            // for a synchronous half bridge: delta=0 commands the low side
+            // almost continuously. Apply the controller duty directly; a
+            // validated synchronous startup/precharge policy is still needed.
+            //
+            UNIPD_bbcRampedDutyA_pu = UNIPD_bbcAppliedDutyA_pu;
+            UNIPD_bbcRampedDutyB_pu = UNIPD_bbcAppliedDutyB_pu;
+#else
             if(UNIPD_bbcPowerOutputDutyRampEnable != 0U)
             {
                 const float rampStep =
@@ -1451,6 +1471,7 @@ void OBC_7_4KW_runUnipdBbcControl(void)
                 UNIPD_bbcRampedDutyA_pu = UNIPD_bbcAppliedDutyA_pu;
                 UNIPD_bbcRampedDutyB_pu = UNIPD_bbcAppliedDutyB_pu;
             }
+#endif
 
             const TTPLPFC_BBC_Mode requestedMode =
                     (UNIPD_bbcInputs.tx_1_rx_0 != 0U) ?

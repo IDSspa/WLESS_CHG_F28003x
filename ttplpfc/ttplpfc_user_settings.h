@@ -32,6 +32,28 @@
 #define TTPLPFC_EPWM67_CONTROL_LEGACY_PFC           0
 #define TTPLPFC_EPWM67_CONTROL_BBC                  1
 
+//
+// Select the BBC gate-drive topology.
+//
+// 0: validated bench topology. BOOST drives only EPWMxB (low side), BUCK
+//    drives only EPWMxA (high side). The inactive device is forced low.
+// 1: experimental UniPD synchronous topology. EPWMxA carries the UniPD duty
+//    delta and the dead-band module generates the complementary EPWMxB
+//    command (1-delta), with the configured RED/FED delays.
+//
+// Keep disabled in production and bench builds until a bidirectional source/
+// sink setup, gate-level captures and shoot-through protection have been
+// explicitly reviewed. Enabling this option can return energy to VBATT/VIN.
+//
+#ifndef TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
+#define TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE         0
+#endif
+
+#if (TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE != 0) && \
+    (TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE != 1)
+#error "TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE must be 0 or 1"
+#endif
+
 #ifndef TTPLPFC_EPWM67_ACTIVE_CONTROL
 #define TTPLPFC_EPWM67_ACTIVE_CONTROL               \
         TTPLPFC_EPWM67_CONTROL_BBC
