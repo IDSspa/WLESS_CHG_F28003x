@@ -13,7 +13,7 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1025;
+const int FIRMWARE_RELEASE = 1026;
 
 #define WLESS_UART_KEY_WH          (1U << 0)
 #define WLESS_UART_KEY_VB          (1U << 1)
@@ -416,6 +416,20 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         WLESS_UART_sendString("FW=");
         WLESS_UART_sendInt((int32_t)FIRMWARE_RELEASE);
         WLESS_UART_sendString("\r\n");
+        return 0U;
+    }
+
+    /* Report the compile-time role explicitly.  Runtime Role from VARS?/VH
+     * may legitimately be NOTHING while the distributed FSM is in DISCOVERY,
+     * so it must not be used to identify the firmware image. */
+    if(strcmp(command, "ROLE?") == 0)
+    {
+        WLESS_UART_commandCount++;
+#if WLESS_SM_BUILD_VEHICLE == 1
+        WLESS_UART_sendString("BUILD_ROLE=VEHICLE\r\n");
+#else
+        WLESS_UART_sendString("BUILD_ROLE=STATION\r\n");
+#endif
         return 0U;
     }
 

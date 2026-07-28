@@ -294,7 +294,7 @@ extern "C" {
 //
 // Power Stage Related Values
 //
-#define CLLLC_NOMINAL_PWM_SWITCHING_FREQUENCY_HZ ((float32_t)85*1000)
+#define CLLLC_NOMINAL_PWM_SWITCHING_FREQUENCY_HZ ((float32_t)80*1000)
 #define CLLLC_MAX_PWM_SWITCHING_FREQUENCY_HZ     ((float32_t)90*1000)
 #define CLLLC_MIN_PWM_SWITCHING_FREQUENCY_HZ     ((float32_t)75*1000)
 
