@@ -24,9 +24,12 @@
 
 //
 // Build role. The original UniPD communication project uses VEHICLE as a
-// compile-time selector. Use a project-local name to avoid global macro leaks.
+// compile-time selector. Build scripts override this default from the compiler
+// command line so selecting a role never modifies a tracked source file.
 //
+#ifndef WLESS_SM_BUILD_VEHICLE
 #define WLESS_SM_BUILD_VEHICLE          0
+#endif
 
 //
 // The original nRF demo uses a 1 kHz timing base. Keep Timer1 free for the TI
