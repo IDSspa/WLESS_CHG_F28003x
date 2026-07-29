@@ -3,6 +3,7 @@ Firmware running on WLESS_CHRG controller boards.
 FIRMWARE BUILD AND FLASH INSTRUCTIONS
 
 Use build_station.ps1 to build STATION RELEASE firmware.
+
 Use vehicle_station.ps1 to build VEHICLE RELEASE firmware.
 
 Use flash_*.ps1 script to properly flash controlCARD. ATTENTION only one controlCARD can be attached to 
