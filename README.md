@@ -1,4 +1,4 @@
-Firmware running on WLESS_CHRG controller boards.
+# Firmware running on WLESS_CHRG controller boards.
 ---
 
 FIRMWARE BUILD AND FLASH INSTRUCTIONS
@@ -13,7 +13,7 @@ Use flash_*.ps1 script to properly flash controlCARD.
 
 ---
 
-TODO:
+**TODO**:
 
 1. review SM code and atomize shared data collect/dispatch
 2. review UART message handling using a more flexible implementation (message handling function pointers)
