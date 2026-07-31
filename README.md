@@ -1,7 +1,7 @@
-## Firmware running on WLESS_CHRG controller boards
+# Firmware running on WLESS_CHRG controller boards
 ---
 
-# FIRMWARE BUILD AND FLASH INSTRUCTIONS
+## FIRMWARE BUILD AND FLASH INSTRUCTIONS
 
 Use build_station.ps1 to build STATION RELEASE firmware.
 
