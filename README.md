@@ -1,4 +1,4 @@
-# Firmware running on WLESS_CHRG controller boards.
+# Firmware running on WLESS_CHRG controller boards
 ---
 
 FIRMWARE BUILD AND FLASH INSTRUCTIONS
