@@ -9,7 +9,7 @@ Use vehicle_station.ps1 to build VEHICLE RELEASE firmware.
 
 Use flash_*.ps1 script to properly flash controlCARD.
 
-*WARNING* only one controlCARD can be attached to programming PC during flashing.
+**WARNING** only one controlCARD can be attached to programming PC during flashing.
 
 ---
 
