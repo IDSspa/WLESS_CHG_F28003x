@@ -313,7 +313,9 @@ extern "C" {
 // V_ITANK_MOD = (6/pi) * 0.025 V/A * |Icoil|.
 // Therefore 3.3 V full-scale corresponds to about 69.12 A peak.
 //
-#define CLLLC_ITANK_MOD_MAX_SENSE_AMPS ((float32_t)69.11504)
+// DT calibration: V_ITANK_MOD_ADC = 0.573 * I_COIL + 0.120 V.
+// This constant converts the ADC per-unit value, after offset removal, to A.
+#define CLLLC_ITANK_MOD_MAX_SENSE_AMPS ((float32_t)(3.3f / 0.573f))
 #define CLLLC_IPRIM_TANK_MAX_SENSE_AMPS CLLLC_ITANK_MOD_MAX_SENSE_AMPS
 #define CLLLC_ISEC_TANK_MAX_SENSE_AMPS ((float32_t)42.375)
 

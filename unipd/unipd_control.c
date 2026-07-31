@@ -904,6 +904,13 @@ void UNIPD_runTransferredPowerIntegration(void)
     float localCoilCurrent;
 
     UNIPD_wptLocalCoilPhysical_Amps = UNIPD_bbcInputs.i_coil_loc;
+    if((UNIPD_wptLocalCoilPhysical_Amps >
+            CLLLC_iTankModLimit_Amps) &&
+       (UNIPD_wptHfcActuatorEnable != 0U))
+    {
+        UNIPD_wptHfcActuatorFault = 8U;
+        UNIPD_disableWptHfcActuator();
+    }
     localCoilCurrent = UNIPD_wptLocalCoilPhysical_Amps;
     if((role == (unsigned int)WLESS_SM_ROLE_SOURCE) &&
        (UNIPD_wptSourceCoilSyntheticEnable != 0U))
@@ -1248,7 +1255,11 @@ void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input)
     input->i_l_b = ((UNIPD_bbcCurrentPolarityMask & 2U) != 0U) ?
                    -UNIPD_bbcILRawB_Amps : UNIPD_bbcILRawB_Amps;
     input->i_coil_loc =
-            CLLLC_iTankModSensed_pu * CLLLC_IPRIM_TANK_MAX_SENSE_AMPS;
+        CLLLC_iTankModSensed_pu * CLLLC_iTankModAmpsPerPu;
+    if(input->i_coil_loc < 0.0f)
+    {
+        input->i_coil_loc = 0.0f;
+    }
 
     input->valid_mask |= UNIPD_BBC_SIGNAL_V_DC |
                          UNIPD_BBC_SIGNAL_V_BAT |

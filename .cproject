@@ -59,6 +59,7 @@
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/utilities"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/power_measurement"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/spll"/>
+                                    <listOptionValue value="C:/ti/C2000Ware_DigitalPower_SDK_5_06_00_00/c2000ware/libraries/flash_api/f28003x/include"/>
                                     <listOptionValue value="${CG_TOOL_ROOT}/include"/>
                                 </option>
                                 <option id="com.ti.ccstudio.buildDefinitions.C2000_22.6.compilerID.ABI.1453654166" superClass="com.ti.ccstudio.buildDefinitions.C2000_22.6.compilerID.ABI" value="com.ti.ccstudio.buildDefinitions.C2000_22.6.compilerID.ABI.eabi" valueType="enumerated"/>
@@ -100,6 +101,7 @@
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/CLAmath"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/FPUfastRTS"/>
                                     <listOptionValue value="${PROJECT_ROOT}/libraries/SFO"/>
+                                    <listOptionValue value="C:/ti/C2000Ware_DigitalPower_SDK_5_06_00_00/c2000ware/libraries/flash_api/f28003x/lib"/>
                                     <listOptionValue value="${CG_TOOL_ROOT}/include"/>
                                 </option>
                                 <option id="com.ti.ccstudio.buildDefinitions.C2000_22.6.linkerID.LIBRARY.1885464319" superClass="com.ti.ccstudio.buildDefinitions.C2000_22.6.linkerID.LIBRARY" valueType="libs">
@@ -109,6 +111,7 @@
                                     <listOptionValue value="cla1_math_library_datarom_fpu32_eabi.lib"/>
                                     <listOptionValue value="rts2800_fpu32_fast_supplement_eabi.lib"/>
                                     <listOptionValue value="SFO_v8_fpu_lib_build_c28_driverlib_eabi.lib"/>
+                                    <listOptionValue value="FAPI_F28003x_EABI_v1.58.10.lib"/>
                                     <listOptionValue value="libc.a"/>
                                 </option>
                                 <option id="com.ti.ccstudio.buildDefinitions.C2000_22.6.linkerID.HEAP_SIZE.1521761161" superClass="com.ti.ccstudio.buildDefinitions.C2000_22.6.linkerID.HEAP_SIZE" value="0x200" valueType="string"/>

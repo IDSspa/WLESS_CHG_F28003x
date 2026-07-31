@@ -37,12 +37,10 @@ MEMORY
 //   FLASH_BANK0_SEC5  : origin = 0x085000, length = 0x001000
    FLASH_BANK0_SEC6  : origin = 0x086000, length = 0x001000
    FLASH_BANK0_SEC7  : origin = 0x087000, length = 0x001000
-   FLASH_BANK0_SEC8  : origin = 0x088000, length = 0x001000
-   FLASH_BANK0_SEC9  : origin = 0x089000, length = 0x001000
+   FLASH_BANK0_SEC8_9: origin = 0x088000, length = 0x002000
    FLASH_BANK0_SEC10 : origin = 0x08A000, length = 0x001000
    FLASH_BANK0_SEC11 : origin = 0x08B000, length = 0x001000
-   FLASH_BANK0_SEC12 : origin = 0x08C000, length = 0x001000
-   FLASH_BANK0_SEC13 : origin = 0x08D000, length = 0x001000
+   FLASH_BANK0_SEC12_13 : origin = 0x08C000, length = 0x002000
    FLASH_BANK0_SEC14 : origin = 0x08E000, length = 0x001000
    FLASH_BANK0_SEC15 : origin = 0x08F000, length = 0x001000
 
@@ -61,8 +59,9 @@ MEMORY
    FLASH_BANK1_SEC11 : origin = 0x09B000, length = 0x001000
    FLASH_BANK1_SEC12 : origin = 0x09C000, length = 0x001000
    FLASH_BANK1_SEC13 : origin = 0x09D000, length = 0x001000
-   FLASH_BANK1_SEC14 : origin = 0x09E000, length = 0x001000
-   FLASH_BANK1_SEC15 : origin = 0x09F000, length = 0x001000
+   /* Reserved exclusively for persistent configuration A/B. */
+   WLESS_CONFIG_A    : origin = 0x09E000, length = 0x001000
+   WLESS_CONFIG_B    : origin = 0x09F000, length = 0x001000
 
   /* BANK 2 */
    FLASH_BANK2_SEC0  : origin = 0x0A0000, length = 0x001000
@@ -110,7 +109,8 @@ SECTIONS
 
 #if defined(__TI_EABI__)
    .uartStrings     : { wless_uart.obj(.const:.string) } > FLASH_BANK0_SEC7, ALIGN(4)
-   .uartCode        : { wless_uart.obj(.text:*) } >> FLASH_BANK0_SEC8 | FLASH_BANK0_SEC9, ALIGN(4)
+   .uartCode        : { wless_uart.obj(.text:*) } >> FLASH_BANK0_SEC8_9 |
+                                                   FLASH_BANK0_SEC12_13, ALIGN(4)
    .init_array      : > FLASH_BANK0_SEC1,       ALIGN(4)
    .bss             : > RAMGS2
    .bss:output      : > RAMGS2
@@ -159,10 +159,11 @@ GROUP
 {
    .TI.ramfunc
    {
+      C:/ti/C2000Ware_DigitalPower_SDK_5_06_00_00/c2000ware/libraries/flash_api/f28003x/lib/FAPI_F28003x_EABI_v1.58.10.lib(.text:*)
    }
    ramfuncs
 
-   }      			 LOAD = FLASH_BANK0_SEC1,
+   }      			 LOAD = FLASH_BANK0_SEC14,
                       RUN = RAMGS0GS1
                       LOAD_START(RamfuncsLoadStart),
                       LOAD_SIZE(RamfuncsLoadSize),

@@ -409,6 +409,8 @@ extern uint32_t CLLLC_iTankCmpssTransitionCount;
 extern float32_t CLLLC_unusedAdca5Sensed_pu;
 extern float32_t CLLLC_iTankSensed_pu;
 extern float32_t CLLLC_iTankModSensed_pu;
+extern float32_t CLLLC_iTankModAmpsPerPu;
+extern float32_t CLLLC_iTankModLimit_Amps;
 extern float32_t CLLLC_unusedAdca5SensedOffset_pu;
 extern float32_t CLLLC_iTankSensedOffset_pu;
 extern float32_t CLLLC_iTankModSensedOffset_pu;
