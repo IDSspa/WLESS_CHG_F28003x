@@ -2,6 +2,7 @@
 #include "clllc.h"
 #include "ttplpfc.h"
 #include "wless_sm/wless_sm.h"
+#include "wless_radio/wless_nrf24.h"
 
 #define UNIPD_V_BAT_MAX_ALG        (218.0f)
 #define UNIPD_V_BAT_MIN_ALG        (37.5f)
@@ -40,9 +41,9 @@
 #define UNIPD_K_V_COIL_LIM_P       (1.0f)
 
 /*
- * Param_Contr(12..17), generated from p_schema_completo_generale_v2.m
- * (nominal Vdc=250 V, Cdc=1.5 mF, fs=85 kHz, Ts=4/fs, Tustin).
- * Difference equation: y[k] = A1*y[k-1] + B0*e[k] + B1*e[k-1].
+ * Param_Contr(12..17), generati da p_schema_completo_generale_v2.m
+ * (valori nominali Vdc=250 V, Cdc=1.5 mF, fs=85 kHz, Ts=4/fs, Tustin).
+ * Equazione alle differenze: y[k] = A1*y[k-1] + B0*e[k] + B1*e[k-1].
  */
 #define UNIPD_RX_PTRASF_A1          (1.0f)
 #define UNIPD_RX_PTRASF_B0          (0.014046111269511f)
@@ -57,6 +58,8 @@ static UNIPD_DcBusControlState unipd_dc_bus_state;
 static UNIPD_RemoteCoilLimitControlState unipd_remote_coil_limit_state;
 static UNIPD_TransferredPowerControlState unipd_rx_transferred_power_state;
 static UNIPD_TransferredPowerControlState unipd_tx_transferred_power_state;
+static float unipd_rx_p_ref_previous_debug;
+static float unipd_rx_v_dc_squared_error_previous_debug;
 static UNIPD_DcBusCoilControlState unipd_dc_bus_coil_state;
 
 UNIPD_BbcIntegrationInputs UNIPD_bbcInputs;
@@ -140,8 +143,12 @@ volatile unsigned int UNIPD_wptCaptureFrozen;
 volatile unsigned int UNIPD_wptCaptureCount;
 volatile unsigned int UNIPD_wptCaptureDecimation =
         UNIPD_WPT_CAPTURE_DECIMATION_DEFAULT;
+volatile unsigned int UNIPD_wptCaptureDropTriggerEnable;
+volatile unsigned int UNIPD_wptCaptureTriggerReason;
 static volatile unsigned int UNIPD_wptCaptureWriteIndex;
 static volatile unsigned int UNIPD_wptCaptureDecimationCount;
+static volatile uint32_t unipd_wptIntegrationClearSequence;
+static unsigned int unipd_wptCaptureDropTriggerQualified;
 #pragma DATA_SECTION(UNIPD_wptCaptureBuffer, "wptCapture")
 static UNIPD_WptCaptureSample
         UNIPD_wptCaptureBuffer[UNIPD_WPT_CAPTURE_LENGTH];
@@ -157,6 +164,7 @@ volatile float UNIPD_wptCoilCurrentMin_Amps;
 volatile float UNIPD_wptTxPowerLimit_Watts;
 volatile float UNIPD_wptRemotePowerLimit_Watts;
 volatile float UNIPD_wptRemoteCoilErr_Amps;
+volatile unsigned int UNIPD_wptRemoteCoilErrInvert;
 volatile unsigned int UNIPD_wptTxPowerSeedPending;
 volatile float UNIPD_wptTxPowerSeed_Watts;
 volatile unsigned int UNIPD_wptLoadPowerSeedPending;
@@ -168,13 +176,24 @@ volatile float UNIPD_wptLoadCoilSynthetic_Amps;
 volatile float UNIPD_wptLoadCoilOffset_Amps;
 volatile float UNIPD_wptLocalCoilPhysical_Amps;
 volatile float UNIPD_wptLocalCoilUsed_Amps;
+/*
+ * Default nominale: conserva il riferimento UniPD firmato. Il clamp legacy
+ * resta disponibile esclusivamente come opzione diagnostica via UART.
+ */
+volatile unsigned int UNIPD_wptHfcLegacyVacClampEnable = 0U;
 volatile unsigned int UNIPD_wptHfcActuatorEnable;
 volatile unsigned int UNIPD_wptHfcActuatorFault;
 volatile unsigned int UNIPD_wptHfcManualPhaseEnable;
 volatile float UNIPD_wptHfcManualPhase_pu = 0.25f;
+/* 0 conserva il comando UniPD con segno; 1 seleziona la mappatura abs() precedente. */
+volatile unsigned int UNIPD_wptHfcPhaseMapInvert = 0U;
 volatile uint32_t UNIPD_wptHfcRemoteRoleInvalidCycles;
 volatile float UNIPD_wptHfcPhaseMax_pu = 0.005f;
-volatile float UNIPD_wptHfcPhaseRampStep_pu = 0.000001f;
+/*
+ * Default nominale: nessuno slew limiter aggiunto dal wrapper; HAPP segue
+ * HREQ. La rampa resta configurabile via UART per sole prove comparative.
+ */
+volatile float UNIPD_wptHfcPhaseRampStep_pu = 0.0f;
 volatile float UNIPD_wptHfcPhaseRequested_pu;
 volatile float UNIPD_wptHfcPhaseApplied_pu;
 volatile float UNIPD_wptHfcAutoHardwarePhase_pu = 0.5f;
@@ -209,7 +228,7 @@ void UNIPD_disableWptHfcActuator(void)
     UNIPD_wptHfcHardwarePhase_pu = 0.5f;
     CLLLC_hfcReceiverTestRun = 0U;
     CLLLC_hfcReceiverTestEnable = 0U;
-    CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu = 0.0f;
+    CLLLC_publishHfcReceiverTestPhaseShift(0.0f);
     CLLLC_pwmPhaseShiftPrimLegsRef_pu = 0.0f;
     CLLLC_pwmPhaseShiftPrimLegs_pu = 0.0f;
     CLLLC_FORCE_PWM_OST_TRIP(CLLLC_PRIM_LEG1_PWM_BASE);
@@ -268,11 +287,30 @@ static void unipd_updateWptHfcActuator(unsigned int role)
         return;
     }
 
-    requested = fabsf(UNIPD_wptHfcOutput.duty_cycle_ps_a - 0.5f);
+    if(UNIPD_wptHfcPhaseMapInvert != 0U)
+    {
+        /* Mappatura storica: entrambe le deviazioni UniPD richiedono eccitazione. */
+        requested = fabsf(UNIPD_wptHfcOutput.duty_cycle_ps_a - 0.5f);
+    }
+    else
+    {
+        /*
+         * Mappatura SOURCE con segno. UniPD codifica il segno di v_ac_rif
+         * scambiando PSA/PSB intorno a 0.5 pu. L'attuatore SOURCE attuale e'
+         * unidirezionale: solo PSA maggiore di 0.5 richiede eccitazione;
+         * la direzione opposta viene mappata sul punto neutro fisico.
+         */
+        requested = UNIPD_wptHfcOutput.duty_cycle_ps_a - 0.5f;
+    }
     requested = unipd_clampf(requested, 0.0f, UNIPD_wptHfcPhaseMax_pu);
     UNIPD_wptHfcPhaseRequested_pu = requested;
 
-    if(UNIPD_wptHfcPhaseApplied_pu < requested)
+    if(UNIPD_wptHfcPhaseRampStep_pu <= 0.0f)
+    {
+        /* WPTHFCRAMP=0 disabilita lo slew limiter del wrapper. */
+        UNIPD_wptHfcPhaseApplied_pu = requested;
+    }
+    else if(UNIPD_wptHfcPhaseApplied_pu < requested)
     {
         UNIPD_wptHfcPhaseApplied_pu += UNIPD_wptHfcPhaseRampStep_pu;
         if(UNIPD_wptHfcPhaseApplied_pu > requested)
@@ -290,10 +328,10 @@ static void unipd_updateWptHfcActuator(unsigned int role)
     }
 
     /*
-     * UniPD expresses the differential modulation as the deviation d from
-     * PSA/PSB = 0.5.  Bench characterization of the retained TI up-down PWM
-     * driver established 0.5 pu as the physical inter-leg neutral point and
-     * 0.0 pu as full differential excitation.  Therefore phase_TI = 0.5 - d.
+     * UniPD esprime la modulazione differenziale come deviazione d rispetto a
+     * PSA/PSB = 0.5. La caratterizzazione al banco del driver PWM TI up-down
+     * mantenuto ha identificato 0.5 pu come punto neutro fisico tra i rami e
+     * 0.0 pu come eccitazione differenziale completa. Quindi phase_TI = 0.5 - d.
      */
     if(UNIPD_wptHfcManualPhaseEnable != 0U)
     {
@@ -307,7 +345,7 @@ static void unipd_updateWptHfcActuator(unsigned int role)
     UNIPD_wptHfcAutoHardwarePhase_pu =
             0.5f - UNIPD_wptHfcPhaseApplied_pu;
     UNIPD_wptHfcHardwarePhase_pu = hardwarePhase;
-    CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu = hardwarePhase;
+    CLLLC_publishHfcReceiverTestPhaseShift(hardwarePhase);
     UNIPD_wptHfcPhaseLast_pu = UNIPD_wptHfcPhaseApplied_pu;
     if(UNIPD_wptHfcPhaseApplied_pu > UNIPD_wptHfcPhasePeak_pu)
     {
@@ -331,6 +369,7 @@ static void unipd_updateWptHfcActuator(unsigned int role)
 
 static void unipd_clearTransferredPowerIntegration(void)
 {
+    unipd_wptIntegrationClearSequence++;
     UNIPD_resetTransferredPowerControl(&unipd_rx_transferred_power_state);
     UNIPD_resetTransferredPowerControl(&unipd_tx_transferred_power_state);
     UNIPD_resetRemoteCoilLimitControl(&unipd_remote_coil_limit_state);
@@ -342,6 +381,7 @@ static void unipd_clearTransferredPowerIntegration(void)
     UNIPD_wptRxOutput.i_coil_err = 0.0f;
     UNIPD_wptHfcOutput.duty_cycle_ps_a = 0.5f;
     UNIPD_wptHfcOutput.duty_cycle_ps_b = 0.5f;
+    UNIPD_wptHfcOutput.v_ac_rif_raw = 0.0f;
     UNIPD_wptHfcOutput.v_ac_rif = 0.0f;
     UNIPD_wptHfcOutput.v_ac_rif_lim = 0.0f;
 }
@@ -391,6 +431,16 @@ void UNIPD_armWptCapture(void)
     UNIPD_wptCaptureCount = 0U;
     UNIPD_wptCaptureWriteIndex = 0U;
     UNIPD_wptCaptureDecimationCount = 0U;
+    UNIPD_wptCaptureDropTriggerEnable = 0U;
+    UNIPD_wptCaptureTriggerReason = 0U;
+    unipd_wptIntegrationClearSequence = 0UL;
+    unipd_wptCaptureDropTriggerQualified = 0U;
+}
+
+void UNIPD_armWptCaptureDropTrigger(void)
+{
+    UNIPD_armWptCapture();
+    UNIPD_wptCaptureDropTriggerEnable = 1U;
 }
 
 void UNIPD_stopWptCapture(void)
@@ -446,16 +496,47 @@ static void unipd_captureWptCycle(void)
     sample->p_ref = UNIPD_wptRxOutput.p_trasf_rif;
     sample->i_ref = UNIPD_wptRxOutput.i_coil_rif;
     sample->i_err = UNIPD_wptRxOutput.i_coil_err;
-    sample->v_ac_ref = UNIPD_wptHfcOutput.v_ac_rif_lim;
-    sample->hfc_request = UNIPD_wptHfcPhaseRequested_pu;
-    sample->hfc_applied = UNIPD_wptHfcPhaseApplied_pu;
-    sample->hfc_auto_hardware = UNIPD_wptHfcAutoHardwarePhase_pu;
-    sample->hfc_physical = UNIPD_wptHfcHardwarePhase_pu;
+    sample->i_remote_err = UNIPD_wptRemoteCoilErr_Amps;
+    if(WLESS_SM_localRole == WLESS_SM_ROLE_LOAD)
+    {
+        /*
+         * Sul LOAD i campi dell'attuatore HFC non sono operativi. Riutilizzarli
+         * per la diagnostica dell'anello di potenza evita di aumentare la RAM
+         * del buffer di capture (96 campioni in RAMGS3).
+         */
+        sample->v_ac_ref = UNIPD_wptRemotePowerLimit_Watts;
+        sample->hfc_unipd_signed = unipd_rx_p_ref_previous_debug;
+        sample->hfc_mapped =
+                (UNIPD_wptVdcLoadRef_Volts * UNIPD_wptVdcLoadRef_Volts) -
+                (UNIPD_bbcInputs.v_dc * UNIPD_bbcInputs.v_dc);
+        sample->hfc_request =
+                unipd_rx_v_dc_squared_error_previous_debug;
+        sample->hfc_applied = (float)WLESS_SM_remotePowerToLoad;
+        sample->hfc_auto_hardware =
+                (float)UNIPD_wptLoadPowerSeedPending;
+        sample->hfc_physical = (float)unipd_wptIntegrationClearSequence;
+        sample->manual = 0U;
+        sample->hfc_fault = 0U;
+    }
+    else
+    {
+        /* Sul SOURCE PREF registra l'ultimo valore copiato nei byte TX nRF. */
+        sample->p_ref = (float)WLESS_NRF24_lastTxPowerToLoad;
+        sample->v_ac_ref = UNIPD_wptHfcOutput.v_ac_rif_raw;
+        sample->hfc_unipd_signed =
+                UNIPD_wptHfcOutput.duty_cycle_ps_a - 0.5f;
+        sample->hfc_mapped = (UNIPD_wptHfcPhaseMapInvert != 0U) ?
+                fabsf(sample->hfc_unipd_signed) : sample->hfc_unipd_signed;
+        sample->hfc_request = UNIPD_wptHfcPhaseRequested_pu;
+        sample->hfc_applied = UNIPD_wptHfcPhaseApplied_pu;
+        sample->hfc_auto_hardware = UNIPD_wptHfcAutoHardwarePhase_pu;
+        sample->hfc_physical = UNIPD_wptHfcHardwarePhase_pu;
+        sample->manual = UNIPD_wptHfcManualPhaseEnable;
+        sample->hfc_fault = UNIPD_wptHfcActuatorFault;
+    }
     sample->role = (unsigned int)WLESS_SM_localRole;
     sample->state = (unsigned int)WLESS_SM_state;
     sample->link = (unsigned int)WLESS_SM_radioLink;
-    sample->hfc_fault = UNIPD_wptHfcActuatorFault;
-    sample->manual = UNIPD_wptHfcManualPhaseEnable;
 
     UNIPD_wptCaptureWriteIndex++;
     if(UNIPD_wptCaptureWriteIndex >= UNIPD_WPT_CAPTURE_LENGTH)
@@ -465,6 +546,49 @@ static void unipd_captureWptCycle(void)
     if(UNIPD_wptCaptureCount < UNIPD_WPT_CAPTURE_LENGTH)
     {
         UNIPD_wptCaptureCount++;
+    }
+
+    /*
+     * WPTCAP=2: trigger fisico con isteresi sul DCLINK LOAD. Qualificare dopo
+     * il raggiungimento dell'80% del riferimento e congelare quando VDC ricade
+     * sotto il 70%. Il ring buffer conserva cosi' i campioni che precedono un
+     * dropout reale, senza dipendere dalla normale evoluzione di PREF durante
+     * il transitorio di salita.
+     */
+    if((UNIPD_wptCaptureDropTriggerEnable != 0U) &&
+       (WLESS_SM_localRole == WLESS_SM_ROLE_LOAD))
+    {
+        if(unipd_wptCaptureDropTriggerQualified == 0U)
+        {
+            if((UNIPD_wptVdcLoadRef_Volts > 0.0f) &&
+               (UNIPD_bbcInputs.v_dc >=
+                (0.8f * UNIPD_wptVdcLoadRef_Volts)))
+            {
+                unipd_wptCaptureDropTriggerQualified = 1U;
+            }
+        }
+        else if(UNIPD_bbcInputs.v_dc <
+                (0.7f * UNIPD_wptVdcLoadRef_Volts))
+        {
+            UNIPD_wptCaptureTriggerReason = 2U;
+            UNIPD_wptCaptureArmed = 0U;
+            UNIPD_wptCaptureFrozen = 1U;
+        }
+    }
+    else if((UNIPD_wptCaptureDropTriggerEnable != 0U) &&
+            (WLESS_SM_localRole == WLESS_SM_ROLE_SOURCE))
+    {
+        /*
+         * Congelare sul latch impostato esattamente dal payload builder: il
+         * valore e' quello realmente copiato nei byte TX, non un campionamento
+         * asincrono della variabile locale.
+         */
+        if(WLESS_NRF24_txPowerZeroLatched != 0U)
+        {
+            UNIPD_wptCaptureTriggerReason = 3U;
+            UNIPD_wptCaptureArmed = 0U;
+            UNIPD_wptCaptureFrozen = 1U;
+        }
     }
 }
 
@@ -630,8 +754,17 @@ static void unipd_calculatePhaseShiftDuty(float v_ac_rif,
         return;
     }
 
-    argument = v_ac_rif / v_ac_rif_max;
+    /*
+     * Trasposizione fedele di Controllo_Sistema_WPT_funzione_v14.m:
+     * la lookup table e' indicizzata con abs(v_ac_rif), quindi il segno
+     * originale della tensione e' ripristinato sul duty prima di generare PSA/PSB.
+     */
+    argument = fabsf(v_ac_rif) / v_ac_rif_max;
     duty = unipd_arcsin_over_pi_interpolated(argument);
+    if(v_ac_rif < 0.0f)
+    {
+        duty = -duty;
+    }
     *duty_cycle_ps_a = 0.5f + duty;
     *duty_cycle_ps_b = 0.5f - duty;
 }
@@ -785,12 +918,24 @@ void UNIPD_controlRemoteCoilCurrentAndLocalCoilLimit(
     v_dc = unipd_clampf(v_dc, UNIPD_vDcMinAlg_Volts, UNIPD_vDcMaxAlg_Volts);
     v_ac_rif_max = v_dc * UNIPD_FOUR_OVER_PI;
 
-    output->v_ac_rif = (UNIPD_K_V_COIL_RIF_P * state->v_ac_rif_p) +
+    output->v_ac_rif_raw =
+                       (UNIPD_K_V_COIL_RIF_P * state->v_ac_rif_p) +
                        (UNIPD_K_V_COIL_RIF_PP * state->v_ac_rif_pp) +
                        (UNIPD_K_I_COIL_ERR * i_coil_rem_err) +
                        (UNIPD_K_I_COIL_ERR_P * state->i_coil_rem_err_p) +
                        (UNIPD_K_I_COIL_ERR_PP * state->i_coil_rem_err_pp);
-    output->v_ac_rif = unipd_clampf(output->v_ac_rif, 0.0f, v_ac_rif_max);
+    output->v_ac_rif = output->v_ac_rif_raw;
+    if(UNIPD_wptHfcLegacyVacClampEnable != 0U)
+    {
+        output->v_ac_rif = unipd_clampf(output->v_ac_rif,
+                                        0.0f, v_ac_rif_max);
+    }
+    else
+    {
+        /* Trasposizione Matlab v14: Vac conserva il segno. */
+        output->v_ac_rif = unipd_clampf(output->v_ac_rif,
+                                       -v_ac_rif_max, v_ac_rif_max);
+    }
 
     i_coil_loc_err = UNIPD_I_COIL_LOC_LIM - i_coil_loc;
     output->v_ac_rif_lim = (UNIPD_K_V_COIL_LIM_P * state->v_ac_rif_lim_p) +
@@ -798,13 +943,14 @@ void UNIPD_controlRemoteCoilCurrentAndLocalCoilLimit(
                            (UNIPD_K_I_COIL_LOC_ERR_P * state->i_coil_loc_err_p);
     output->v_ac_rif_lim = unipd_clampf(output->v_ac_rif_lim, 0.0f, v_ac_rif_max);
 
-    if(output->v_ac_rif > output->v_ac_rif_lim)
+    if(fabsf(output->v_ac_rif) > output->v_ac_rif_lim)
     {
-        output->v_ac_rif = output->v_ac_rif_lim;
+        output->v_ac_rif = (output->v_ac_rif < 0.0f) ?
+                -output->v_ac_rif_lim : output->v_ac_rif_lim;
     }
-    if(output->v_ac_rif_lim > (output->v_ac_rif + 1.0f))
+    if(output->v_ac_rif_lim > (fabsf(output->v_ac_rif) + 1.0f))
     {
-        output->v_ac_rif_lim = output->v_ac_rif + 1.0f;
+        output->v_ac_rif_lim = fabsf(output->v_ac_rif) + 1.0f;
     }
 
     unipd_calculatePhaseShiftDuty(output->v_ac_rif,
@@ -842,6 +988,11 @@ void UNIPD_controlRxDcBusViaTransferredPower(
             p_trasf_rem_rif_lim : 0.0f;
     v_dc_2_ptrasf_err = (v_dc_ptrasf_rif * v_dc_ptrasf_rif) -
                         (v_dc * v_dc);
+
+    /* Valori precedenti acquisiti prima dell'aggiornamento dello stato. */
+    unipd_rx_p_ref_previous_debug = state->p_trasf_rif_p;
+    unipd_rx_v_dc_squared_error_previous_debug =
+            state->v_dc_2_ptrasf_err_p;
 
     output->p_trasf_rif =
             (UNIPD_RX_PTRASF_A1 * state->p_trasf_rif_p) +
@@ -883,7 +1034,7 @@ float UNIPD_controlTxDcBusTransferredPowerLimit(
     p_trasf_min = v_dc * i_coil_amp_min * (2.0f / UNIPD_PI);
     p_trasf_max = v_dc * i_coil_amp_max * (2.0f / UNIPD_PI);
 
-    /* Transferred power discharges the transmitter bus: reverse the error. */
+    /* La potenza trasferita scarica il bus trasmittente: invertire l'errore. */
     v_dc_2_ptrasf_err = (v_dc * v_dc) -
                         (v_dc_ptrasf_rif * v_dc_ptrasf_rif);
     p_trasf_rif =
@@ -974,8 +1125,12 @@ void UNIPD_runTransferredPowerIntegration(void)
             UNIPD_wptTxPowerSeedPending = 0U;
         }
         UNIPD_wptRemoteCoilErr_Amps =
-                (float)WLESS_SM_iCoilErr *
+                (float)WLESS_SM_remoteICoilErr *
                 UNIPD_WPT_COIL_ERR_A_PER_LSB;
+        if(UNIPD_wptRemoteCoilErrInvert != 0U)
+        {
+            UNIPD_wptRemoteCoilErr_Amps = -UNIPD_wptRemoteCoilErr_Amps;
+        }
         UNIPD_wptTxPowerLimit_Watts =
                 UNIPD_controlTxDcBusTransferredPowerLimit(
                     &unipd_tx_transferred_power_state,
@@ -998,10 +1153,19 @@ void UNIPD_runTransferredPowerIntegration(void)
     else
     {
         UNIPD_wptRemotePowerLimit_Watts =
-                (float)WLESS_SM_powerToLoad *
+                (float)WLESS_SM_remotePowerToLoad *
                 UNIPD_WPT_POWER_W_PER_LSB;
+        /*
+         * Non consumare il seed mentre il plant e' ancora inattivo. WPT=1
+         * abilita il calcolo prima di WPTHFC=1 e il limite remoto puo' quindi
+         * essere gia' positivo con VLOAD fisicamente nulla. In tale condizione
+         * il seed verrebbe applicato e poi perso prima dell'avvio dell'HFC.
+         * Attendere il primo riscontro fisico sul DCLINK LOAD; il controllore
+         * UniPD e i suoi coefficienti restano invariati.
+         */
         if((UNIPD_wptLoadPowerSeedPending != 0U) &&
-           (UNIPD_wptRemotePowerLimit_Watts > 0.0f))
+           (UNIPD_wptRemotePowerLimit_Watts > 0.0f) &&
+           (UNIPD_bbcInputs.v_dc >= UNIPD_vDcMinAlg_Volts))
         {
             float seedVdc = unipd_clampf(UNIPD_bbcInputs.v_dc,
                                         UNIPD_vDcMinAlg_Volts,
@@ -1037,6 +1201,7 @@ void UNIPD_runTransferredPowerIntegration(void)
         UNIPD_resetRemoteCoilLimitControl(&unipd_remote_coil_limit_state);
         UNIPD_wptHfcOutput.duty_cycle_ps_a = 0.5f;
         UNIPD_wptHfcOutput.duty_cycle_ps_b = 0.5f;
+        UNIPD_wptHfcOutput.v_ac_rif_raw = 0.0f;
         UNIPD_wptHfcOutput.v_ac_rif = 0.0f;
         UNIPD_wptHfcOutput.v_ac_rif_lim = 0.0f;
     }
@@ -1135,7 +1300,16 @@ void UNIPD_controlDcBusAndCoilCurrent(UNIPD_DcBusCoilControlState *state,
                        (UNIPD_K_I_COIL_ERR * i_coil_rem_err) +
                        (UNIPD_K_I_COIL_ERR_P * state->i_coil_rem_err_p) +
                        (UNIPD_K_I_COIL_ERR_PP * state->i_coil_rem_err_pp);
-    output->v_ac_rif = unipd_clampf(output->v_ac_rif, 0.0f, v_ac_rif_max);
+    if(UNIPD_wptHfcLegacyVacClampEnable != 0U)
+    {
+        output->v_ac_rif = unipd_clampf(output->v_ac_rif,
+                                        0.0f, v_ac_rif_max);
+    }
+    else
+    {
+        output->v_ac_rif = unipd_clampf(output->v_ac_rif,
+                                       -v_ac_rif_max, v_ac_rif_max);
+    }
 
     unipd_calculatePhaseShiftDuty(output->v_ac_rif,
                                   v_ac_rif_max,
@@ -1234,9 +1408,9 @@ void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input)
     input->valid_mask = 0U;
 
     /*
-     * These reads currently use the existing ADC result registers. The final
-     * control entry point should be moved to an ADC-EOC ISR once the complete
-     * synchronized conversion burst has been defined.
+     * Queste letture usano attualmente i registri risultato ADC esistenti.
+     * Il punto di ingresso definitivo del controllo dovra' essere spostato in
+     * una ISR ADC-EOC dopo aver definito il burst completo di conversioni sincrone.
      */
     TTPLPFC_read_individualCurrent();
     TTPLPFC_read_busVoltage();
@@ -1261,6 +1435,31 @@ void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input)
         input->i_coil_loc = 0.0f;
     }
 
+    /*
+     * Alimentare la supervisione FSM con le grandezze fisiche gia' acquisite
+     * nello stesso ciclo ISR. I comandi UART VB/IC restano disponibili come
+     * strumenti diagnostici, ma non sono piu' necessari durante il run.
+     * L'assegnazione precede intenzionalmente gli eventuali override sintetici
+     * UniPD, che non devono falsificare le condizioni analogiche della FSM.
+     */
+    if(input->v_dc >= 65534.5f)
+    {
+        WLESS_SM_vBus_V = 65535U;
+    }
+    else
+    {
+        WLESS_SM_vBus_V = (uint16_t)(input->v_dc + 0.5f);
+    }
+    if(input->i_coil_loc >= 65.5345f)
+    {
+        WLESS_SM_iCoil_mA = 65535U;
+    }
+    else
+    {
+        WLESS_SM_iCoil_mA =
+                (uint16_t)((input->i_coil_loc * 1000.0f) + 0.5f);
+    }
+
     input->valid_mask |= UNIPD_BBC_SIGNAL_V_DC |
                          UNIPD_BBC_SIGNAL_V_BAT |
                          UNIPD_BBC_SIGNAL_I_L_A |
@@ -1276,9 +1475,9 @@ void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input)
 void UNIPD_runBbcDockingDiagnostics(void)
 {
     /*
-     * The docking-test path has ISR precedence over the UniPD controller.
-     * Keep the physical measurements and the diagnostic capture alive without
-     * executing the controller or writing any additional PWM command.
+     * Il percorso di docking test ha precedenza nell'ISR sul controllore UniPD.
+     * Mantenere attive le misure fisiche e la capture diagnostica senza eseguire
+     * il controllore ne' scrivere ulteriori comandi PWM.
      */
     UNIPD_collectBbcIntegrationInputs(&UNIPD_bbcInputs);
     UNIPD_bbcSignalValidMask = UNIPD_bbcInputs.valid_mask;
@@ -1286,9 +1485,9 @@ void UNIPD_runBbcDockingDiagnostics(void)
             UNIPD_BBC_REQUIRED_SIGNAL_MASK & ~UNIPD_bbcSignalValidMask;
 
     /*
-     * During docking tests these fields describe the duty actually handed to
-     * the BBC adapter. Controller references/errors remain untouched so that
-     * no open-loop sample can alter the UniPD control state.
+     * Durante i docking test questi campi descrivono il duty effettivamente
+     * passato all'adattatore BBC. Riferimenti ed errori del controllore restano
+     * invariati, affinche' nessun campione open-loop alteri lo stato di UniPD.
      */
     UNIPD_bbcMappedDutyA_pu = TTPLPFC_duty1_pu;
     UNIPD_bbcMappedDutyB_pu = TTPLPFC_duty2_pu;
@@ -1401,9 +1600,9 @@ void OBC_7_4KW_runUnipdBbcControl(void)
                                            0.95f);
 #if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
         //
-        // UniPD defines delta as the high-side duty for both power-flow
-        // directions. The dead-band module generates the complementary
-        // low-side command. Do not apply the asynchronous BOOST 1-delta map.
+        // UniPD definisce delta come duty high-side per entrambe le direzioni
+        // del flusso di potenza. Il modulo dead-band genera il comando low-side
+        // complementare. Non applicare la mappatura BOOST asincrona 1-delta.
         //
         UNIPD_bbcMappedDutyA_pu = UNIPD_bbcOutput.duty_cycle_pwm_a;
         UNIPD_bbcMappedDutyB_pu = UNIPD_bbcOutput.duty_cycle_pwm_b;
@@ -1427,10 +1626,10 @@ void OBC_7_4KW_runUnipdBbcControl(void)
         {
 #if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
             //
-            // Ramping the high-side duty from zero is not a safe soft start
-            // for a synchronous half bridge: delta=0 commands the low side
-            // almost continuously. Apply the controller duty directly; a
-            // validated synchronous startup/precharge policy is still needed.
+            // Una rampa del duty high-side da zero non costituisce un soft start
+            // sicuro per un half bridge sincrono: delta=0 comanda il low-side
+            // quasi continuamente. Applicare direttamente il duty del controllore;
+            // serve ancora una strategia sincrona di startup/precharge validata.
             //
             UNIPD_bbcRampedDutyA_pu = UNIPD_bbcAppliedDutyA_pu;
             UNIPD_bbcRampedDutyB_pu = UNIPD_bbcAppliedDutyB_pu;

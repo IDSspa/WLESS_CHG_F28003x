@@ -14,7 +14,7 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1028;
+const int FIRMWARE_RELEASE = 1065;
 
 #define WLESS_UART_KEY_WH          (1U << 0)
 #define WLESS_UART_KEY_VB          (1U << 1)
@@ -371,6 +371,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
 {
     WLESS_UART_ParseResult result;
     uint32_t wptValue;
+    uint16_t wptHfcInhibitMask;
 
     WLESS_UART_sendString(command);
     WLESS_UART_sendString("\r\n");
@@ -727,6 +728,8 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         WLESS_UART_sendInt((int32_t)UNIPD_wptHfcManualPhaseEnable);
         WLESS_UART_sendString(",MPH_mpu=");
         WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcManualPhase_pu * 1000.0f));
+        WLESS_UART_sendString(",MAPINV=");
+        WLESS_UART_sendInt((int32_t)UNIPD_wptHfcPhaseMapInvert);
         WLESS_UART_sendString(",RRINV=");
         WLESS_UART_sendInt((int32_t)UNIPD_wptHfcRemoteRoleInvalidCycles);
         WLESS_UART_sendString("\r\n");
@@ -813,6 +816,52 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         return 0U;
     }
 
+    if(WLESS_UART_parseExactUnsigned(command, "WPTIRINV=", &wptValue) != 0U)
+    {
+        WLESS_UART_commandCount++;
+        if(wptValue > 1UL)
+        {
+            WLESS_UART_sendString("WPTIRINV RANGE\r\n");
+            return 1U;
+        }
+        UNIPD_disableWptHfcActuator();
+        UNIPD_wptRemoteCoilErrInvert = (unsigned int)wptValue;
+        UNIPD_resetControlStatesCommand = 1U;
+        WLESS_UART_sendWptIntegration();
+        return 0U;
+    }
+
+    if(WLESS_UART_parseExactUnsigned(command, "WPTHFCINV=", &wptValue) != 0U)
+    {
+        WLESS_UART_commandCount++;
+        if(wptValue > 1UL)
+        {
+            WLESS_UART_sendString("WPTHFCINV RANGE\r\n");
+            return 1U;
+        }
+        UNIPD_disableWptHfcActuator();
+        UNIPD_wptHfcPhaseMapInvert = (unsigned int)wptValue;
+        UNIPD_resetControlStatesCommand = 1U;
+        WLESS_UART_sendWptIntegration();
+        return 0U;
+    }
+
+    if(WLESS_UART_parseExactUnsigned(command, "WPTCLAMP=", &wptValue) != 0U)
+    {
+        WLESS_UART_commandCount++;
+        if(wptValue > 1UL)
+        {
+            WLESS_UART_sendString("WPTCLAMP RANGE\r\n");
+            return 1U;
+        }
+        /* Le modifiche del controllore sono applicate soltanto con HFC fermo. */
+        UNIPD_disableWptHfcActuator();
+        UNIPD_wptHfcLegacyVacClampEnable = (unsigned int)wptValue;
+        UNIPD_resetControlStatesCommand = 1U;
+        WLESS_UART_sendWptIntegration();
+        return 0U;
+    }
+
     if(strcmp(command, "WPTHFCPHAUTO") == 0)
     {
         WLESS_UART_commandCount++;
@@ -840,13 +889,34 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(strcmp(command, "WPTHFC=1") == 0)
     {
         WLESS_UART_commandCount++;
-        if((UNIPD_wptIntegrationEnable == 0U) ||
-           (WLESS_SM_localRole != WLESS_SM_ROLE_SOURCE) ||
-           (WLESS_SM_remoteRole != WLESS_SM_ROLE_LOAD) ||
-           (WLESS_SM_radioLink != WLESS_SM_LINK_OK) ||
-           (UNIPD_wptSourceCoilSyntheticEnable == 0U))
+        wptHfcInhibitMask = 0U;
+        if(UNIPD_wptIntegrationEnable == 0U)
         {
-            WLESS_UART_sendString("WPTHFC INHIBIT\r\n");
+            wptHfcInhibitMask |= 1U;
+        }
+        if(WLESS_SM_localRole != WLESS_SM_ROLE_SOURCE)
+        {
+            wptHfcInhibitMask |= 2U;
+        }
+        if(WLESS_SM_remoteRole != WLESS_SM_ROLE_LOAD)
+        {
+            wptHfcInhibitMask |= 4U;
+        }
+        if(WLESS_SM_radioLink != WLESS_SM_LINK_OK)
+        {
+            wptHfcInhibitMask |= 8U;
+        }
+        if((UNIPD_wptSourceCoilSyntheticEnable == 0U) &&
+           ((UNIPD_bbcInputs.valid_mask &
+             UNIPD_BBC_SIGNAL_I_COIL_LOC) == 0U))
+        {
+            wptHfcInhibitMask |= 16U;
+        }
+        if(wptHfcInhibitMask != 0U)
+        {
+            WLESS_UART_sendString("WPTHFC INHIBIT,");
+            WLESS_UART_sendInt((int32_t)wptHfcInhibitMask);
+            WLESS_UART_sendString("\r\n");
             WLESS_UART_sendWptIntegration();
             return 1U;
         }
@@ -892,7 +962,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     {
         WLESS_UART_commandCount++;
         UNIPD_disableWptHfcActuator();
-        if((wptValue < 1UL) || (wptValue > 100UL))
+        if(wptValue > 100UL)
         {
             WLESS_UART_sendString("WPTHFCRAMP RANGE\r\n");
             return 1U;
@@ -1016,6 +1086,15 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     {
         WLESS_UART_commandCount++;
         UNIPD_armWptCapture();
+        WLESS_UART_sendWptCaptureStatus();
+        return 0U;
+    }
+
+    if(strcmp(command, "WPTCAP=2") == 0)
+    {
+        WLESS_UART_commandCount++;
+        WLESS_NRF24_resetPowerTrace();
+        UNIPD_armWptCaptureDropTrigger();
         WLESS_UART_sendWptCaptureStatus();
         return 0U;
     }
@@ -1778,6 +1857,12 @@ static void WLESS_UART_sendWptIntegration(void)
     WLESS_UART_sendInt((int32_t)(UNIPD_wptRxOutput.i_coil_err * 100.0f));
     WLESS_UART_sendString(",IREM_cA=");
     WLESS_UART_sendInt((int32_t)(UNIPD_wptRemoteCoilErr_Amps * 100.0f));
+    WLESS_UART_sendString(",RINV=");
+    WLESS_UART_sendInt((int32_t)UNIPD_wptRemoteCoilErrInvert);
+    WLESS_UART_sendString(",CLAMP=");
+    WLESS_UART_sendInt((int32_t)UNIPD_wptHfcLegacyVacClampEnable);
+    WLESS_UART_sendString(",VACRAW_mV=");
+    WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcOutput.v_ac_rif_raw * 1000.0f));
     WLESS_UART_sendString(",VAC_mV=");
     WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcOutput.v_ac_rif * 1000.0f));
     WLESS_UART_sendString(",HENA=");
@@ -1864,6 +1949,10 @@ static void WLESS_UART_sendWptCaptureStatus(void)
     WLESS_UART_sendInt((int32_t)UNIPD_WPT_CAPTURE_LENGTH);
     WLESS_UART_sendString(",DEC=");
     WLESS_UART_sendInt((int32_t)UNIPD_wptCaptureDecimation);
+    WLESS_UART_sendString(",DROPTRIG=");
+    WLESS_UART_sendInt((int32_t)UNIPD_wptCaptureDropTriggerEnable);
+    WLESS_UART_sendString(",REASON=");
+    WLESS_UART_sendInt((int32_t)UNIPD_wptCaptureTriggerReason);
     WLESS_UART_sendString("\r\n");
 }
 
@@ -1879,8 +1968,11 @@ static void WLESS_UART_sendWptCaptureDump(void)
     }
 
     WLESS_UART_sendString(
-        "WPTCAPD_COLUMNS,1,IDX,TICK,ROLE,STATE,LINK,VDC_mV,IPHY_mA,IUSE_mA,"
-        "PREF_W,IREF_cA,IERR_cA,VAC_mV,HREQ_mpu,HAPP_mpu,"
+        "WPTCAPD_COLUMNS,2,IDX,TICK,ROLE,STATE,LINK,VDC_mV,IPHY_mA,IUSE_mA,"
+        "PREM_mW,PREF_mW,PPREV_mW,VERR2_x1000,VERR2P_x1000,"
+        "REMOTE_RAW,SEEDP,CLEARSEQ,"
+        "IREF_cA,IERR_cA,IREM_cA,VACRAW_mV,HRAW_mpu,HMAP_mpu,"
+        "HREQ_mpu,HAPP_mpu,"
         "HAUTO_mpu,HPHY_mpu,MAN,FAULT\r\n");
     for(index = 0U; index < UNIPD_wptCaptureCount; index++)
     {
@@ -1888,7 +1980,7 @@ static void WLESS_UART_sendWptCaptureDump(void)
         {
             break;
         }
-        WLESS_UART_sendString("WPTCAPD,1,");
+        WLESS_UART_sendString("WPTCAPD,2,");
         WLESS_UART_sendInt((int32_t)index);
         WLESS_UART_sendString(",");
         WLESS_UART_sendInt((int32_t)sample.tick);
@@ -1905,13 +1997,33 @@ static void WLESS_UART_sendWptCaptureDump(void)
         WLESS_UART_sendString(",");
         WLESS_UART_sendInt((int32_t)(sample.i_coil_used * 1000.0f));
         WLESS_UART_sendString(",");
-        WLESS_UART_sendInt((int32_t)sample.p_ref);
+        WLESS_UART_sendInt((int32_t)(sample.v_ac_ref * 1000.0f));
+        WLESS_UART_sendString(",");
+        WLESS_UART_sendInt((int32_t)(sample.p_ref * 1000.0f));
+        WLESS_UART_sendString(",");
+        WLESS_UART_sendInt((int32_t)(sample.hfc_unipd_signed * 1000.0f));
+        WLESS_UART_sendString(",");
+        WLESS_UART_sendInt((int32_t)(sample.hfc_mapped * 1000.0f));
+        WLESS_UART_sendString(",");
+        WLESS_UART_sendInt((int32_t)(sample.hfc_request * 1000.0f));
+        WLESS_UART_sendString(",");
+        WLESS_UART_sendInt((int32_t)sample.hfc_applied);
+        WLESS_UART_sendString(",");
+        WLESS_UART_sendInt((int32_t)sample.hfc_auto_hardware);
+        WLESS_UART_sendString(",");
+        WLESS_UART_sendInt((int32_t)sample.hfc_physical);
         WLESS_UART_sendString(",");
         WLESS_UART_sendInt((int32_t)(sample.i_ref * 100.0f));
         WLESS_UART_sendString(",");
         WLESS_UART_sendInt((int32_t)(sample.i_err * 100.0f));
         WLESS_UART_sendString(",");
+        WLESS_UART_sendInt((int32_t)(sample.i_remote_err * 100.0f));
+        WLESS_UART_sendString(",");
         WLESS_UART_sendInt((int32_t)(sample.v_ac_ref * 1000.0f));
+        WLESS_UART_sendString(",");
+        WLESS_UART_sendInt((int32_t)(sample.hfc_unipd_signed * 1000.0f));
+        WLESS_UART_sendString(",");
+        WLESS_UART_sendInt((int32_t)(sample.hfc_mapped * 1000.0f));
         WLESS_UART_sendString(",");
         WLESS_UART_sendInt((int32_t)(sample.hfc_request * 1000.0f));
         WLESS_UART_sendString(",");
@@ -2014,12 +2126,52 @@ static void WLESS_UART_sendRadio(void)
     WLESS_UART_sendInt((int32_t)WLESS_NRF24_ackCount);
     WLESS_UART_sendString(", MAXRT=");
     WLESS_UART_sendInt((int32_t)WLESS_NRF24_maxRtCount);
+    WLESS_UART_sendString(", RXVALID=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_validPayloadCount);
+    WLESS_UART_sendString(", RXINVALID=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_invalidPayloadCount);
+    WLESS_UART_sendString(", RXIRUN=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_invalidPayloadRunCount);
+    WLESS_UART_sendString(", RXIMAX=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_invalidPayloadMaxRunCount);
+    WLESS_UART_sendString(", TXBUSY=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_txBusy);
+    WLESS_UART_sendString(", BUSYREJ=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_txBusyRejectCount);
+    WLESS_UART_sendString(", FIFOREJ=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_txFifoRejectCount);
+    WLESS_UART_sendString(", ACKP=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_ackRefreshPending);
     WLESS_UART_sendString(", TXSEQ=");
     WLESS_UART_sendInt((int32_t)WLESS_NRF24_lastTxSequence);
     WLESS_UART_sendString(", RXSEQ=");
     WLESS_UART_sendInt((int32_t)WLESS_NRF24_lastRxSequence);
     WLESS_UART_sendString(", NOACK=");
     WLESS_UART_sendInt((int32_t)WLESS_SM_noAckCount);
+    WLESS_UART_sendString(", NOACKMAX=");
+    WLESS_UART_sendInt((int32_t)WLESS_SM_noAckMaxCount);
+    WLESS_UART_sendString(", TXP=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_lastTxPowerToLoad);
+    WLESS_UART_sendString(", RXP=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_lastRxPowerToLoad);
+    WLESS_UART_sendString(", TXP0=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_txPowerZeroLatched);
+    WLESS_UART_sendString(", RXP0=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_rxPowerZeroLatched);
+    WLESS_UART_sendString(", ATX=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_lastTxAppSequence);
+    WLESS_UART_sendString(", ARX=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_lastRxAppSequence);
+    WLESS_UART_sendString(", ADEL=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_lastRxAppSequenceDelta);
+    WLESS_UART_sendString(", ACRC=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_appCrcErrorCount);
+    WLESS_UART_sendString(", ASEQERR=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_appSequenceAnomalyCount);
+    WLESS_UART_sendString(", ZSEQ=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_rxPowerZeroSequence);
+    WLESS_UART_sendString(", ZDEL=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_rxPowerZeroSequenceDelta);
     WLESS_UART_sendString(", REMOTE_E=");
     WLESS_UART_sendInt((int32_t)WLESS_SM_remoteEnergyEncoded);
     WLESS_UART_sendString(", REMOTE_ROLE=");

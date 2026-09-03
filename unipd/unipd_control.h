@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-/* Existing nRF24 int16 payload field scales used by the UniPD integration. */
+/* Scale esistenti dei campi int16 del payload nRF24 usate dall'integrazione UniPD. */
 #define UNIPD_WPT_POWER_W_PER_LSB       (1.0f)
 #define UNIPD_WPT_COIL_ERR_A_PER_LSB    (0.01f)
 
@@ -44,11 +44,12 @@ typedef struct
 {
     float duty_cycle_ps_a;
     float duty_cycle_ps_b;
+    float v_ac_rif_raw;
     float v_ac_rif;
     float v_ac_rif_lim;
 } UNIPD_RemoteCoilLimitControlOutput;
 
-/* Outer WPT power-transfer loops from Controllo_Sistema_WPT_funzione_v14.m. */
+/* Anelli esterni di trasferimento potenza WPT da Controllo_Sistema_WPT_funzione_v14.m. */
 typedef struct
 {
     float v_dc_2_ptrasf_err_p;
@@ -172,7 +173,10 @@ typedef struct
     float p_ref;
     float i_ref;
     float i_err;
+    float i_remote_err;
     float v_ac_ref;
+    float hfc_unipd_signed;
+    float hfc_mapped;
     float hfc_request;
     float hfc_applied;
     float hfc_auto_hardware;
@@ -194,9 +198,9 @@ extern volatile float UNIPD_vDcMinAlg_Volts;
 extern volatile float UNIPD_vDcMaxAlg_Volts;
 extern volatile float UNIPD_vdcControllerGainScale;
 /*
- * Physical inductor-current polarity correction:
- * bit 0 inverts IL_A, bit 1 inverts IL_B.  Raw values remain available for
- * diagnostics; the corrected values feed UniPD, trips and capture.
+ * Correzione della polarita' fisica delle correnti negli induttori:
+ * il bit 0 inverte IL_A, il bit 1 inverte IL_B. I valori raw restano disponibili
+ * per la diagnostica; quelli corretti alimentano UniPD, trip e capture.
  */
 extern volatile unsigned int UNIPD_bbcCurrentPolarityMask;
 extern volatile float UNIPD_bbcILRawA_Amps;
@@ -241,7 +245,7 @@ extern volatile unsigned int UNIPD_bbcCaptureFrozen;
 extern volatile unsigned int UNIPD_bbcCaptureCount;
 extern volatile unsigned int UNIPD_bbcCaptureTriggerReason;
 
-/* Distributed WPT integration. Computation only; no HFC PWM write is made. */
+/* Integrazione WPT distribuita. Solo calcolo: nessuna scrittura PWM HFC. */
 extern volatile unsigned int UNIPD_wptIntegrationEnable;
 extern volatile float UNIPD_wptVdcSourceRef_Volts;
 extern volatile float UNIPD_wptVdcLoadRef_Volts;
@@ -250,6 +254,7 @@ extern volatile float UNIPD_wptCoilCurrentMin_Amps;
 extern volatile float UNIPD_wptTxPowerLimit_Watts;
 extern volatile float UNIPD_wptRemotePowerLimit_Watts;
 extern volatile float UNIPD_wptRemoteCoilErr_Amps;
+extern volatile unsigned int UNIPD_wptRemoteCoilErrInvert;
 extern volatile unsigned int UNIPD_wptTxPowerSeedPending;
 extern volatile float UNIPD_wptTxPowerSeed_Watts;
 extern volatile unsigned int UNIPD_wptLoadPowerSeedPending;
@@ -261,10 +266,13 @@ extern volatile float UNIPD_wptLoadCoilSynthetic_Amps;
 extern volatile float UNIPD_wptLoadCoilOffset_Amps;
 extern volatile float UNIPD_wptLocalCoilPhysical_Amps;
 extern volatile float UNIPD_wptLocalCoilUsed_Amps;
+/* 1: clamp inferiore legacy a zero; 0: riferimento UniPD firmato. */
+extern volatile unsigned int UNIPD_wptHfcLegacyVacClampEnable;
 extern volatile unsigned int UNIPD_wptHfcActuatorEnable;
 extern volatile unsigned int UNIPD_wptHfcActuatorFault;
 extern volatile unsigned int UNIPD_wptHfcManualPhaseEnable;
 extern volatile float UNIPD_wptHfcManualPhase_pu;
+extern volatile unsigned int UNIPD_wptHfcPhaseMapInvert;
 extern volatile uint32_t UNIPD_wptHfcRemoteRoleInvalidCycles;
 extern volatile float UNIPD_wptHfcPhaseMax_pu;
 extern volatile float UNIPD_wptHfcPhaseRampStep_pu;
@@ -289,12 +297,15 @@ extern volatile unsigned int UNIPD_wptCaptureArmed;
 extern volatile unsigned int UNIPD_wptCaptureFrozen;
 extern volatile unsigned int UNIPD_wptCaptureCount;
 extern volatile unsigned int UNIPD_wptCaptureDecimation;
+extern volatile unsigned int UNIPD_wptCaptureDropTriggerEnable;
+extern volatile unsigned int UNIPD_wptCaptureTriggerReason;
 
 void UNIPD_armBbcCapture(void);
 void UNIPD_stopBbcCapture(void);
 unsigned int UNIPD_getBbcCaptureSample(unsigned int chronologicalIndex,
                                        UNIPD_BbcCaptureSample *sample);
 void UNIPD_armWptCapture(void);
+void UNIPD_armWptCaptureDropTrigger(void);
 void UNIPD_stopWptCapture(void);
 unsigned int UNIPD_getWptCaptureSample(unsigned int chronologicalIndex,
                                        UNIPD_WptCaptureSample *sample);
@@ -355,18 +366,19 @@ void UNIPD_controlDcBusAndCoilCurrent(UNIPD_DcBusCoilControlState *state,
                                       UNIPD_DcBusCoilControlOutput *output);
 
 /*
- * ISR hook prepared for integration with the original firmware.
- * Keep UNIPD_CONTROL_ENABLE_RUNTIME_HOOK at 0 until the application variables
- * carrying ADC-scaled measurements, BMS limits, radio data and PWM writes are
- * mapped in this function.
+ * Hook ISR predisposto per l'integrazione con il firmware originale.
+ * Mantenere UNIPD_CONTROL_ENABLE_RUNTIME_HOOK a 0 finche' in questa funzione
+ * non saranno mappate le variabili applicative con misure scalate ADC, limiti
+ * BMS, dati radio e scritture PWM.
  */
 #ifndef UNIPD_CONTROL_ENABLE_RUNTIME_HOOK
 #define UNIPD_CONTROL_ENABLE_RUNTIME_HOOK 0
 #endif
 
 /*
- * Keep the power-output application disabled until the ADC synchronization,
- * BMS/radio data path and gate mapping have been verified on hardware.
+ * Mantenere disabilitata l'applicazione delle uscite di potenza finche' la
+ * sincronizzazione ADC, il percorso dati BMS/radio e la mappatura dei gate
+ * non saranno stati verificati sull'hardware.
  */
 #ifndef UNIPD_BBC_ENABLE_POWER_OUTPUTS
 #define UNIPD_BBC_ENABLE_POWER_OUTPUTS 1

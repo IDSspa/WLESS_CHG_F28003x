@@ -15,15 +15,35 @@ extern volatile uint32_t WLESS_NRF24_txCount;
 extern volatile uint32_t WLESS_NRF24_rxCount;
 extern volatile uint32_t WLESS_NRF24_ackCount;
 extern volatile uint32_t WLESS_NRF24_maxRtCount;
+extern volatile uint32_t WLESS_NRF24_validPayloadCount;
+extern volatile uint32_t WLESS_NRF24_invalidPayloadCount;
+extern volatile uint16_t WLESS_NRF24_invalidPayloadRunCount;
+extern volatile uint16_t WLESS_NRF24_invalidPayloadMaxRunCount;
+extern volatile uint16_t WLESS_NRF24_txBusy;
+extern volatile uint32_t WLESS_NRF24_txBusyRejectCount;
+extern volatile uint32_t WLESS_NRF24_txFifoRejectCount;
+extern volatile uint16_t WLESS_NRF24_ackRefreshPending;
 extern volatile uint16_t WLESS_NRF24_lastTxSequence;
 extern volatile uint16_t WLESS_NRF24_lastRxSequence;
 extern volatile uint32_t WLESS_NRF24_initFailMask;
+extern volatile int16_t WLESS_NRF24_lastTxPowerToLoad;
+extern volatile int16_t WLESS_NRF24_lastRxPowerToLoad;
+extern volatile uint16_t WLESS_NRF24_txPowerZeroLatched;
+extern volatile uint16_t WLESS_NRF24_rxPowerZeroLatched;
+extern volatile uint16_t WLESS_NRF24_lastTxAppSequence;
+extern volatile uint16_t WLESS_NRF24_lastRxAppSequence;
+extern volatile uint16_t WLESS_NRF24_lastRxAppSequenceDelta;
+extern volatile uint32_t WLESS_NRF24_appCrcErrorCount;
+extern volatile uint32_t WLESS_NRF24_appSequenceAnomalyCount;
+extern volatile uint16_t WLESS_NRF24_rxPowerZeroSequence;
+extern volatile uint16_t WLESS_NRF24_rxPowerZeroSequenceDelta;
 
 void WLESS_NRF24_init(void);
 void WLESS_NRF24_service(void);
 uint8_t WLESS_NRF24_readRegister(uint8_t reg);
 bool WLESS_NRF24_sendDiagnosticPing(void);
 void WLESS_NRF24_irqIsr(void);
+void WLESS_NRF24_resetPowerTrace(void);
 
 #if WLESS_NRF24_ENABLE == 1
 #define WLESS_NRF24_INIT_IF_ENABLED()     WLESS_NRF24_init()

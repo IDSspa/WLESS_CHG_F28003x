@@ -100,8 +100,11 @@ extern volatile uint16_t WLESS_SM_vBusMin_V;
 extern volatile uint16_t WLESS_SM_iBatMin_mA;
 extern volatile uint16_t WLESS_SM_iCoilMin_mA;
 extern volatile int16_t WLESS_SM_powerToLoad;
+extern volatile int16_t WLESS_SM_remotePowerToLoad;
 extern volatile int16_t WLESS_SM_iCoilErr;
+extern volatile int16_t WLESS_SM_remoteICoilErr;
 extern volatile uint16_t WLESS_SM_noAckCount;
+extern volatile uint16_t WLESS_SM_noAckMaxCount;
 
 extern volatile uint16_t WLESS_SM_initOkCommand;
 extern volatile uint16_t WLESS_SM_stopCommand;

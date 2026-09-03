@@ -2,18 +2,20 @@
 #define WLESS_SM_SETTINGS_H_
 
 //
-// Wireless charger state-machine integration.
+// Integrazione della state machine del caricatore wireless.
 //
-// Keep the module disabled by default while hardware bring-up is in progress.
-// Enabling this only runs the supervisory state machine; power-stage commands
-// remain blocked unless WLESS_SM_POWER_CONTROL_ENABLE is explicitly enabled.
+// Mantenere il modulo disabilitato per default durante il bring-up hardware.
+// L'abilitazione esegue soltanto la state machine di supervisione; i comandi
+// allo stadio di potenza restano bloccati finche' non viene abilitato
+// esplicitamente WLESS_SM_POWER_CONTROL_ENABLE.
 //
 #define WLESS_SM_ENABLE                 1
 #define WLESS_SM_POWER_CONTROL_ENABLE   0
 
 //
-// Diagnostic bring-up isolation. When enabled, run only WLESS_SM_init() and
-// keep the ISR2 tick hook and A1 state-machine background processing disabled.
+// Isolamento diagnostico del bring-up. Se abilitato, esegue solo WLESS_SM_init()
+// e mantiene disabilitati l'hook del tick ISR2 e l'elaborazione in background A1
+// della state machine.
 //
 #define WLESS_SM_TEST_INIT_ONLY         0
 #define WLESS_SM_TEST_ISR_TICK_ONLY     0
@@ -23,19 +25,20 @@
 #define WLESS_SM_TEST_VEHICLE_OPERATION_STATES_ONLY 0
 
 //
-// Build role. The original UniPD communication project uses VEHICLE as a
-// compile-time selector. Build scripts override this default from the compiler
-// command line so selecting a role never modifies a tracked source file.
+// Ruolo di build. Il progetto di comunicazione UniPD originale usa VEHICLE come
+// selettore compile-time. Gli script di build sovrascrivono questo default dalla
+// riga di comando del compilatore, evitando che la selezione del ruolo modifichi
+// un file sorgente tracciato.
 //
 #ifndef WLESS_SM_BUILD_VEHICLE
 #define WLESS_SM_BUILD_VEHICLE          0
 #endif
 
 //
-// The original nRF demo uses a 1 kHz timing base. Keep Timer1 free for the TI
-// firmware and derive the state-machine timing from the existing ISR2 source.
-// The state-machine code still decimates diagnostic traffic to ~1 Hz when no
-// energy transfer is active.
+// La demo nRF originale usa una base tempi a 1 kHz. Mantenere Timer1 libero per
+// il firmware TI e derivare la temporizzazione della state machine dalla sorgente
+// ISR2 esistente. Il codice della state machine continua a decimare il traffico
+// diagnostico a circa 1 Hz quando non e' attivo alcun trasferimento di energia.
 //
 #define WLESS_SM_SOURCE_TICK_HZ         21250U
 #define WLESS_SM_BASE_TICK_HZ           1000U
@@ -51,14 +54,14 @@
 #define WLESS_SM_IBAT_MIN_MA            1U
 #define WLESS_SM_ICOIL_MIN_MA           1U
 
-// Initial engineering values; keep configurable until validated against the
-// final sensors and power-stage dynamics.
+// Valori ingegneristici iniziali; mantenerli configurabili fino alla validazione
+// con i sensori definitivi e la dinamica dello stadio di potenza.
 #define WLESS_SM_ENERGY_HYSTERESIS_WH   50L
 #define WLESS_SM_ROLE_DEADBAND_WH        50L
 #define WLESS_SM_ANALOG_CONFIRM_SAMPLES  2U
 
-// Oscilloscope-only scheduler test. Toggle GPIO30 on every generated logical
-// tick. Disable again after the quantitative docking measurement.
+// Test dello scheduler destinato al solo oscilloscopio. Commutare GPIO30 a ogni
+// tick logico generato. Disabilitare nuovamente dopo la misura quantitativa su docking.
 #define WLESS_SM_TICK_GPIO_TEST_ENABLE    0
 #define WLESS_SM_TICK_GPIO_PIN            30U
 

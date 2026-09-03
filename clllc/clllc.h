@@ -335,6 +335,19 @@ extern volatile uint16_t CLLLC_hfcReceiverTestInhibit;
 extern volatile uint16_t CLLLC_hfcReceiverTestMinITankModRaw;
 extern volatile float32_t CLLLC_hfcReceiverTestDuty_pu;
 extern volatile float32_t CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu;
+extern volatile uint16_t CLLLC_hfcReceiverTestPhaseShiftSeq;
+
+/*
+ * Pubblica il comando a 32 bit verso l'ISR HFC senza esporre una scrittura
+ * parziale sul bus C28x a 16 bit. La sequenza dispari indica una scrittura in
+ * corso; il lettore real-time conserva il campione precedente in quel caso.
+ */
+static inline void CLLLC_publishHfcReceiverTestPhaseShift(float32_t phaseShift_pu)
+{
+    CLLLC_hfcReceiverTestPhaseShiftSeq++;
+    CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu = phaseShift_pu;
+    CLLLC_hfcReceiverTestPhaseShiftSeq++;
+}
 
 extern volatile uint16_t CLLLC_hfcGanFaultGpioLevel;
 extern volatile uint16_t CLLLC_hfcGanFaultActiveLow;
@@ -1510,7 +1523,19 @@ static inline void CLLLC_runHfcReceiverTestMode(void)
     }
     else
     {
+        uint16_t phaseSeqBefore;
+        uint16_t phaseSeqAfter;
+
+        phaseSeqBefore = CLLLC_hfcReceiverTestPhaseShiftSeq;
         phaseShift_pu = CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu;
+        phaseSeqAfter = CLLLC_hfcReceiverTestPhaseShiftSeq;
+
+        if(((phaseSeqBefore & 1U) != 0U) ||
+           (phaseSeqBefore != phaseSeqAfter))
+        {
+            /* Scrittura interrotta: conserva l'ultimo comando coerente. */
+            phaseShift_pu = CLLLC_pwmPhaseShiftPrimLegsRef_pu;
+        }
     }
 
     if(phaseShift_pu < -0.5f)
@@ -1521,8 +1546,6 @@ static inline void CLLLC_runHfcReceiverTestMode(void)
     {
         phaseShift_pu = 0.5f;
     }
-    CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu = phaseShift_pu;
-
     CLLLC_pwmDutyPrimRef_pu = duty_pu;
     CLLLC_pwmPhaseShiftPrimLegsRef_pu = phaseShift_pu;
 

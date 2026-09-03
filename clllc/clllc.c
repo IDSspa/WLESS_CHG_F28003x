@@ -70,6 +70,7 @@ float32_t CLLLC_gvPartialComputedValue;
 #pragma RETAIN (CLLLC_hfcReceiverTestMinITankModRaw)
 #pragma RETAIN (CLLLC_hfcReceiverTestDuty_pu)
 #pragma RETAIN (CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu)
+#pragma RETAIN (CLLLC_hfcReceiverTestPhaseShiftSeq)
 
 int32_t CLLLC_closeGiLoop;
 int32_t CLLLC_closeGvLoop;
@@ -85,6 +86,7 @@ volatile uint16_t CLLLC_hfcReceiverTestInhibit;
 volatile uint16_t CLLLC_hfcReceiverTestMinITankModRaw;
 volatile float32_t CLLLC_hfcReceiverTestDuty_pu;
 volatile float32_t CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu;
+volatile uint16_t CLLLC_hfcReceiverTestPhaseShiftSeq;
 
 #pragma RETAIN (CLLLC_hfcGanFaultGpioLevel)
 #pragma RETAIN (CLLLC_hfcGanFaultActiveLow)
@@ -788,7 +790,8 @@ void CLLLC_initGlobalVariables(void)
     CLLLC_hfcReceiverTestInhibit = 0;
     CLLLC_hfcReceiverTestMinITankModRaw = 0;
     CLLLC_hfcReceiverTestDuty_pu = 0.1f;
-    CLLLC_hfcReceiverTestPhaseShiftPrimLegs_pu = 0.0f;
+    CLLLC_hfcReceiverTestPhaseShiftSeq = 0U;
+    CLLLC_publishHfcReceiverTestPhaseShift(0.0f);
 
 //    CLLLC_cla_task_counter = 0;
 

@@ -261,12 +261,18 @@ fault attivi.
 | Comando | Funzione |
 |---|---|
 | `FW?` | release firmware |
+| `ROLE?` | ruolo compilato nel firmware: `ROLE,1,BUILD=VEHICLE` oppure `ROLE,1,BUILD=STATION` |
 | `VARS?` | ruolo, stato FSM, link e variabili principali |
 | `RADIO?` | stato nRF24 e contatori |
 | `UQ?` | configurazione e diagnostica BOOST/BUCK UniPD |
 | `HFC?` | diagnostica ponte HFC |
 | `WPT?` | diagnostica integrazione WPT |
 | `WPTSNAP?` | snapshot WPT |
+
+Dal firmware 1027 le risposte diagnostiche strutturate iniziano con
+`TIPO,VERSIONE`. Esempi: `UQ,1,...`, `HFC,1,...`, `RADIO,1,...`.
+Il software host deve identificare la risposta mediante l'intero campo
+`TIPO`, non mediante il solo primo carattere.
 
 ### 7.2 BOOST/BUCK
 
@@ -311,7 +317,8 @@ docking test disabilitati. Impostare tutti i parametri prima di `UE=1`.
 | `WPTHFCPH=<0...500>` | imposta phase shift fisico manuale e disabilita l'attuatore |
 | `WPTHFCPHAUTO` | torna alla fase automatica e disabilita l'attuatore |
 | `WPTHFCLIM=<1...500>` | limite phase shift automatico |
-| `WPTHFCRAMP=<1...100>` | passo rampa HFC in micro-pu/ciclo |
+| `WPTHFCRAMP=<0...100>` | passo rampa HFC in micro-pu/ciclo; 0 disabilita la rampa |
+| `WPTCLAMP=<0|1>` | 0 conserva il riferimento UniPD firmato; 1 abilita il clamp legacy a zero |
 | `WPTISRC=<mA>` | corrente coil SOURCE sintetica |
 | `WPTISRC=OFF` | ripristina la corrente SOURCE fisica; usare solo se validata |
 | `WPTILOAD=<mA>` | corrente coil LOAD sintetica |
@@ -322,6 +329,17 @@ docking test disabilitati. Impostare tutti i parametri prima di `UE=1`.
 | `WPTIMAX=<mA>` | limite massimo corrente WPT |
 
 `WPTHFC=1` viene inibito se:
+
+La risposta `WPTHFC INHIBIT,<mask>` identifica le condizioni non soddisfatte;
+i bit della maschera possono sommarsi:
+
+| Bit | Valore | Condizione di inibizione |
+|---:|---:|---|
+| 0 | 1 | integrazione WPT disabilitata |
+| 1 | 2 | ruolo locale diverso da SOURCE |
+| 2 | 4 | ruolo remoto diverso da LOAD |
+| 3 | 8 | link radio non `OK` |
+| 4 | 16 | corrente coil SOURCE non sintetica e misura fisica non valida |
 
 - `WPT=1` non e' attivo;
 - il ruolo locale non e' SOURCE;
@@ -1173,6 +1191,14 @@ CAPD?       dump, solo a buffer congelato
 
 Non armare se e' gia' presente un fault latched.
 
+Formato delle risposte dal firmware 1027:
+
+```text
+CAPS,1,<armed>,<frozen>,<count>,<length>,<decimation>,<trigger>
+CAPD_COLUMNS,1,<nomi dei campi>
+CAPD,1,<indice>,<campi numerici>
+```
+
 ### 14.2 Capture WPT sincronizzato
 
 ```text
@@ -1185,6 +1211,9 @@ WPTCAPD?
 
 Il buffer contiene 96 campioni. `WPTCAPD?` deve essere eseguito soltanto dopo
 `WPTCAP=0`.
+
+Le risposte usano i prefissi versionati `WPTCAP,1`,
+`WPTCAPD_COLUMNS,1` e `WPTCAPD,1`.
 
 Campi principali:
 
@@ -1274,7 +1303,25 @@ Esito: PASS / FAIL / NON VALIDANTE
 Note:
 ```
 
-## 17. Chiusura del banco
+## 17. Clamp UniPD HFC e rampa del wrapper
+
+`WPTCLAMP=0` ripristina la trasposizione firmata UniPD: il riferimento interno
+`Vac` e' limitato tra `-Vac_max` e `+Vac_max`. La protezione fisica resta nel
+wrapper: una richiesta negativa continua a essere applicata come punto neutro
+e non abilita il trasferimento inverso.
+
+`WPTCLAMP=1` riproduce il clamp inferiore legacy a zero per confronti
+diagnostici. Il comando disabilita preventivamente HFC e resetta gli stati del
+controllore.
+
+`WPTHFCRAMP=0` disabilita lo slew limiter continuo: `HAPP` segue direttamente
+`HREQ`. I valori da 1 a 100 mantengono la rampa in micro-pu per ciclo ISR.
+
+La risposta `WPT?` espone `CLAMP`, `VACRAW_mV`, `VAC_mV`, `HREQ_mpu` e
+`HAPP_mpu`. `VACRAW_mV` precede i clamp; `VAC_mV` e' il riferimento firmato
+dopo i limiti UniPD.
+
+## 18. Chiusura del banco
 
 1. `UE=0` su entrambe le schede.
 2. `WPTHFC=0` sul SOURCE.

@@ -27,7 +27,9 @@
 #pragma RETAIN(WLESS_SM_iBat_mA)
 #pragma RETAIN(WLESS_SM_iCoil_mA)
 #pragma RETAIN(WLESS_SM_powerToLoad)
+#pragma RETAIN(WLESS_SM_remotePowerToLoad)
 #pragma RETAIN(WLESS_SM_iCoilErr)
+#pragma RETAIN(WLESS_SM_remoteICoilErr)
 #pragma RETAIN(WLESS_SM_noAckCount)
 #pragma RETAIN(WLESS_SM_initOkCommand)
 #pragma RETAIN(WLESS_SM_stopCommand)
@@ -62,8 +64,11 @@ volatile uint16_t WLESS_SM_vBusMin_V = WLESS_SM_VBUS_MIN_V;
 volatile uint16_t WLESS_SM_iBatMin_mA = WLESS_SM_IBAT_MIN_MA;
 volatile uint16_t WLESS_SM_iCoilMin_mA = WLESS_SM_ICOIL_MIN_MA;
 volatile int16_t WLESS_SM_powerToLoad;
+volatile int16_t WLESS_SM_remotePowerToLoad;
 volatile int16_t WLESS_SM_iCoilErr;
+volatile int16_t WLESS_SM_remoteICoilErr;
 volatile uint16_t WLESS_SM_noAckCount;
+volatile uint16_t WLESS_SM_noAckMaxCount;
 
 volatile uint16_t WLESS_SM_initOkCommand;
 volatile uint16_t WLESS_SM_stopCommand;
@@ -315,20 +320,22 @@ static WLESS_SM_WptState WLESS_SM_runWptDecision(void)
 
 #if WLESS_SM_POWER_CONTROL_ENABLE == 1
 /*
- * Prospective FSM -> UniPD power-control integration.
+ * Integrazione prospettica FSM -> controllo di potenza UniPD.
  *
- * IMPORTANT:
- * - this code is excluded from the current FW while
- *   WLESS_SM_POWER_CONTROL_ENABLE remains 0;
- * - it deliberately does not overwrite UART-configurable references, clamps
- *   or ramp parameters;
- * - every INTEGRATION TODO below must be reviewed before hardware enable.
+ * IMPORTANTE:
+ * - questo codice e' escluso dal firmware corrente finche'
+ *   WLESS_SM_POWER_CONTROL_ENABLE resta a 0;
+ * - intenzionalmente non sovrascrive riferimenti, clamp o parametri di rampa
+ *   configurabili tramite UART;
+ * - ogni TODO DI INTEGRAZIONE seguente deve essere riesaminato prima
+ *   dell'abilitazione hardware.
  */
 static void WLESS_SM_disableUnipdPowerPath(void)
 {
     /*
-     * Stop the active actuators first, then clear the integration state.
-     * UNIPD_disableWptHfcActuator() also forces an OST trip on the HFC PWM.
+     * Arrestare prima gli attuatori attivi, quindi azzerare lo stato
+     * dell'integrazione. UNIPD_disableWptHfcActuator() forza anche un trip OST
+     * sul PWM HFC.
      */
     UNIPD_bbcPowerOutputEnable = 0U;
     TTPLPFC_bbcDockTestEnable = 0;
@@ -338,17 +345,17 @@ static void WLESS_SM_disableUnipdPowerPath(void)
     UNIPD_resetControlStatesCommand = 1U;
 
     /*
-     * INTEGRATION TODO: validate whether an active DCLINK discharge command is
-     * required here. At present OFF removes power conversion but does not
-     * guarantee a controlled discharge of the DC-link capacitors.
+     * TODO DI INTEGRAZIONE: validare se qui serva un comando attivo di scarica
+     * del DCLINK. Attualmente OFF interrompe la conversione di potenza, ma non
+     * garantisce la scarica controllata dei condensatori del DC-link.
      */
 }
 
 static void WLESS_SM_prepareUnipdBbcPath(void)
 {
     /*
-     * The docking-test path has ISR precedence over the UniPD BBC path and
-     * must therefore be disabled before granting authority to UniPD.
+     * Il percorso di docking test ha precedenza nell'ISR sul percorso BBC
+     * UniPD e deve quindi essere disabilitato prima di assegnare autorita' a UniPD.
      */
     TTPLPFC_bbcDockTestEnable = 0;
     TTPLPFC_bbcDockTestLegMode = TTPLPFC_BBC_DOCK_TEST_LEG_DISABLED;
@@ -360,23 +367,24 @@ static void WLESS_SM_prepareUnipdBbcPath(void)
     UNIPD_bbcPowerOutputEnable = 1U;
 
     /*
-     * The ISR selects BOOST or BUCK from the UniPD tx_1_rx_0 input, which is
-     * derived from WLESS_SM_localRole. Do not select the hardware mode here:
-     * there must be one authority for the role -> converter-mode mapping.
+     * L'ISR seleziona BOOST o BUCK dall'ingresso UniPD tx_1_rx_0, derivato da
+     * WLESS_SM_localRole. Non selezionare qui la modalita' hardware: deve
+     * esistere una sola autorita' per la mappatura ruolo -> modalita' convertitore.
      *
-     * INTEGRATION TODO: define the policy for clearing latched VDC/IL faults.
-     * They are intentionally not cleared automatically on a state transition.
+     * TODO DI INTEGRAZIONE: definire la strategia di cancellazione dei fault
+     * VDC/IL latched. Intenzionalmente non vengono cancellati in automatico
+     * durante una transizione di stato.
      *
-     * INTEGRATION TODO: validate references, current limits, duty clamp and
-     * ramp parameters before setting UNIPD_bbcPowerOutputEnable.
+     * TODO DI INTEGRAZIONE: validare riferimenti, limiti di corrente, clamp del
+     * duty e parametri di rampa prima di impostare UNIPD_bbcPowerOutputEnable.
      */
 }
 
 static void WLESS_SM_enableUnipdSourceHfc(void)
 {
     /*
-     * Reproduce the already tested automatic UniPD HFC actuator preparation,
-     * but leave calculation of the phase shift to
+     * Riprodurre la preparazione automatica dell'attuatore HFC UniPD gia'
+     * verificata, lasciando pero' il calcolo del phase-shift a
      * UNIPD_runTransferredPowerIntegration().
      */
     UNIPD_wptHfcActuatorFault = 0U;
@@ -394,13 +402,13 @@ static void WLESS_SM_enableUnipdSourceHfc(void)
     UNIPD_wptHfcActuatorEnable = 1U;
 
     /*
-     * INTEGRATION TODO: before enabling this path on hardware, validate:
-     * - SOURCE local role, LOAD remote role and radio link;
-     * - availability/validity of local and remote ITANK_MOD;
-     * - SOURCE synthetic-current policy while its physical channel is not
-     *   validated;
-     * - BOOST-ready sequencing and the minimum DCLINK condition;
-     * - HFC trip-clear policy.
+     * TODO DI INTEGRAZIONE: prima di abilitare questo percorso sull'hardware, validare:
+     * - ruolo locale SOURCE, ruolo remoto LOAD e link radio;
+     * - disponibilita'/validita' di ITANK_MOD locale e remoto;
+     * - strategia della corrente sintetica SOURCE finche' il relativo canale
+     *   fisico non e' validato;
+     * - sequenza BOOST-ready e condizione minima del DCLINK;
+     * - strategia di cancellazione del trip HFC.
      */
 }
 #endif
@@ -417,35 +425,35 @@ static void WLESS_SM_setPowerCommand(WLESS_SM_PowerCommand command)
     else if(command == WLESS_SM_POWER_CMD_SOURCE_PRECHARGE)
     {
         /*
-         * SOURCE precharge: run the BBC UniPD path in BOOST mode while HFC
-         * remains tripped. The FSM will request SOURCE_ON only after its
-         * VBUS-ready condition.
+         * Precharge SOURCE: eseguire il percorso BBC UniPD in modalita' BOOST
+         * mantenendo HFC in trip. La FSM richiedera' SOURCE_ON solo dopo il
+         * raggiungimento della propria condizione VBUS-ready.
          */
         WLESS_SM_prepareUnipdBbcPath();
     }
     else if(command == WLESS_SM_POWER_CMD_SOURCE_ON)
     {
         /*
-         * Keep the BOOST loop running and add the transmitting HFC actuator.
-         * Do not reset the BBC controller here: it has already reached the
-         * precharge operating point.
+         * Mantenere attivo l'anello BOOST e aggiungere l'attuatore HFC
+         * trasmittente. Non resettare qui il controllore BBC: ha gia'
+         * raggiunto il punto operativo di precharge.
          */
         WLESS_SM_enableUnipdSourceHfc();
     }
     else if(command == WLESS_SM_POWER_CMD_LOAD_PRECHARGE)
     {
         /*
-         * LOAD precharge: UniPD selects BUCK from the local role. The HFC
-         * bridge remains disabled because the LOAD rectifier is passive.
+         * Precharge LOAD: UniPD seleziona BUCK in base al ruolo locale. Il ponte
+         * HFC resta disabilitato poiche' il rectifier LOAD e' passivo.
          */
         WLESS_SM_prepareUnipdBbcPath();
     }
     else if(command == WLESS_SM_POWER_CMD_LOAD_ON)
     {
         /*
-         * Keep the BUCK UniPD loop and transferred-power calculation active.
-         * They were enabled by LOAD_PRECHARGE; no active receiver bridge
-         * command is issued.
+         * Mantenere attivi l'anello BUCK UniPD e il calcolo della potenza
+         * trasferita. Sono stati abilitati da LOAD_PRECHARGE; non viene emesso
+         * alcun comando attivo per il ponte ricevente.
          */
         UNIPD_disableWptHfcActuator();
     }
@@ -488,8 +496,11 @@ void WLESS_SM_init(void)
     WLESS_SM_iBat_mA = 0U;
     WLESS_SM_iCoil_mA = 0U;
     WLESS_SM_powerToLoad = 0;
+    WLESS_SM_remotePowerToLoad = 0;
     WLESS_SM_iCoilErr = 0;
+    WLESS_SM_remoteICoilErr = 0;
     WLESS_SM_noAckCount = 0U;
+    WLESS_SM_noAckMaxCount = 0U;
     WLESS_SM_initOkCommand = 0U;
     WLESS_SM_stopCommand = 0U;
     WLESS_SM_diagnosticMessagePending = 0U;
@@ -580,9 +591,14 @@ void WLESS_SM_runBackgroundTick(void)
             WLESS_SM_operationMessagePending = 1U;
         }
 #else
+        /* Azzerato dal driver esclusivamente dopo un payload valido. */
         if(WLESS_SM_noAckCount < 15U)
         {
             WLESS_SM_noAckCount++;
+            if(WLESS_SM_noAckCount > WLESS_SM_noAckMaxCount)
+            {
+                WLESS_SM_noAckMaxCount = WLESS_SM_noAckCount;
+            }
         }
 #endif
     }
@@ -1205,8 +1221,8 @@ void WLESS_SM_run(void)
     previousState = WLESS_SM_state;
 
 #if WLESS_SM_TEST_RUN_DISPATCH_ONLY == 1
-    // Diagnostic isolation: verify WLESS_SM_run() scheduling and bookkeeping
-    // without entering either role-specific state-machine implementation.
+    // Isolamento diagnostico: verificare scheduling e bookkeeping di
+    // WLESS_SM_run() senza entrare nelle implementazioni FSM specifiche dei ruoli.
 #elif WLESS_SM_TEST_VEHICLE_STANDBY_ONLY == 1
     WLESS_SM_runVehicleStandbyOnly();
 #elif WLESS_SM_BUILD_VEHICLE == 1

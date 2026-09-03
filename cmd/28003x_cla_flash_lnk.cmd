@@ -93,22 +93,21 @@ SECTIONS
 {
    .cinit           : > FLASH_BANK0_SEC1, ALIGN(4)
    /*
-    * SEC2..SEC5 were the original application-code area.  SEC10 and SEC11
-    * are otherwise unused and extend .text without overlapping the dedicated
-    * CLA/constant, ISR or UART sectors (SEC6..SEC9).  SEC12..SEC15 and Banks
-    * 1..2 remain unallocated for future partitioning, including persistent
-    * configuration storage.
+    * SEC2..SEC5 were the original application-code area.  SEC10 extends
+    * .text, while SEC11 is reserved for the UART strings.  This keeps the
+    * strings separate from SEC7, which contains the ISR load image.
+    * SEC12..SEC15 and Banks 1..2 remain available for the other dedicated
+    * partitions and future expansion.
     */
    .text            : >> FLASH_BANK0_SEC2_5 |
-                       FLASH_BANK0_SEC10 |
-                       FLASH_BANK0_SEC11, ALIGN(4)
+                       FLASH_BANK0_SEC10, ALIGN(4)
    codestart        : > BEGIN, ALIGN(4)
 
    .stack           : > RAMM1
    .switch          : > FLASH_BANK0_SEC1, ALIGN(4)
 
 #if defined(__TI_EABI__)
-   .uartStrings     : { wless_uart.obj(.const:.string) } > FLASH_BANK0_SEC7, ALIGN(4)
+   .uartStrings     : { wless_uart.obj(.const:.string) } > FLASH_BANK0_SEC11, ALIGN(4)
    .uartCode        : { wless_uart.obj(.text:*) } >> FLASH_BANK0_SEC8_9 |
                                                    FLASH_BANK0_SEC12_13, ALIGN(4)
    .init_array      : > FLASH_BANK0_SEC1,       ALIGN(4)
