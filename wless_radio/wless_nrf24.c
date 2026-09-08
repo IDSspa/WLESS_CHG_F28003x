@@ -498,8 +498,14 @@ void WLESS_NRF24_service(void)
                 NRF_REG_STATUS,
                 (uint8_t)(WLESS_NRF24_lastStatus & NRF_STATUS_IRQ_MASK));
         }
-        if(((WLESS_NRF24_lastStatus & NRF_STATUS_RX_DR) != 0U) ||
-           ((WLESS_NRF24_lastFifoStatus & NRF_FIFO_RX_EMPTY) == 0U))
+        /*
+         * RX_DR is a latched event, not proof that R_RX_PAYLOAD can still be
+         * read. It can coexist with an empty FIFO after a previous service
+         * pass. Reading an empty RX FIFO produces a deterministic-looking
+         * non-payload (for example 0x2E or 0x03 repeated), which must not be
+         * counted as an application CRC failure.
+         */
+        if((WLESS_NRF24_lastFifoStatus & NRF_FIFO_RX_EMPTY) == 0U)
         {
             uint16_t payloads = 0U;
             do
