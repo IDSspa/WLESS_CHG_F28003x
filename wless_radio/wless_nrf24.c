@@ -79,6 +79,14 @@ static uint16_t WLESS_NRF24_txPowerValidSeen;
 static uint16_t WLESS_NRF24_rxPowerValidSeen;
 static uint16_t WLESS_NRF24_payloadTxSequence;
 static uint16_t WLESS_NRF24_rxAppSequenceSeen;
+#if WLESS_NRF24_DIAG_CAPTURE_ENABLE == 1U
+volatile uint32_t WLESS_NRF24_diagInvalidCaptured;
+volatile uint8_t WLESS_NRF24_diagLastInvalidPayload[NRF_PAYLOAD_LENGTH];
+volatile uint8_t WLESS_NRF24_diagLastInvalidStatus;
+volatile uint8_t WLESS_NRF24_diagLastInvalidFifo;
+volatile uint16_t WLESS_NRF24_diagLastInvalidReceivedCrc;
+volatile uint16_t WLESS_NRF24_diagLastInvalidCalculatedCrc;
+#endif
 
 static uint8_t WLESS_NRF24_command(uint8_t command,
                                    const uint8_t *txData,
@@ -183,6 +191,18 @@ static bool WLESS_NRF24_consumeOperationalPayload(const uint8_t *payload)
 
     if(receivedCrc != calculatedCrc)
     {
+#if WLESS_NRF24_DIAG_CAPTURE_ENABLE == 1U
+        uint16_t index;
+        for(index = 0U; index < NRF_PAYLOAD_LENGTH; index++)
+        {
+            WLESS_NRF24_diagLastInvalidPayload[index] = payload[index];
+        }
+        WLESS_NRF24_diagLastInvalidStatus = WLESS_NRF24_lastStatus;
+        WLESS_NRF24_diagLastInvalidFifo = WLESS_NRF24_lastFifoStatus;
+        WLESS_NRF24_diagLastInvalidReceivedCrc = receivedCrc;
+        WLESS_NRF24_diagLastInvalidCalculatedCrc = calculatedCrc;
+        WLESS_NRF24_diagInvalidCaptured++;
+#endif
         WLESS_NRF24_appCrcErrorCount++;
         WLESS_NRF24_recordInvalidPayload();
         return false;
@@ -281,6 +301,7 @@ static uint8_t WLESS_NRF24_command(uint8_t command,
     uint16_t transferLength = length + 1U;
     uint8_t received;
     uint8_t status = 0xFFU;
+    bool interruptsWereDisabled;
 
     if(transferLength > NRF_MAX_TRANSFER)
     {
@@ -289,11 +310,25 @@ static uint8_t WLESS_NRF24_command(uint8_t command,
 
     SPI_resetTxFIFO(SPIA_BASE);
     SPI_resetRxFIFO(SPIA_BASE);
+
+    /*
+     * CSN remains asserted for the complete nRF command stream.  Do not let
+     * the IRQ ISR preempt between the opcode and its data bytes: otherwise a
+     * second SPI operation can segment the stream and make R_RX_PAYLOAD read
+     * a deterministic stale byte repeatedly at the VEHICLE high-rate path.
+     * Re-enable interrupts before the SPI shift/wait phase; only FIFO preload
+     * is atomic.
+     */
+    interruptsWereDisabled = Interrupt_disableGlobal();
     SPI_writeDataNonBlocking(SPIA_BASE, ((uint16_t)command << 8U));
     for(i = 1U; i < transferLength; i++)
     {
         uint8_t value = (txData != NULL) ? txData[i - 1U] : NRF_CMD_NOP;
         SPI_writeDataNonBlocking(SPIA_BASE, ((uint16_t)value << 8U));
+    }
+    if(!interruptsWereDisabled)
+    {
+        Interrupt_enableGlobal();
     }
     while((uint16_t)SPI_getRxFIFOStatus(SPIA_BASE) < transferLength)
     {

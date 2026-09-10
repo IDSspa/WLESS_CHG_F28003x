@@ -14,7 +14,7 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1066;
+const int FIRMWARE_RELEASE = 1067;
 
 #define WLESS_UART_KEY_WH          (1U << 0)
 #define WLESS_UART_KEY_VB          (1U << 1)
@@ -2098,6 +2098,9 @@ static void WLESS_UART_sendVars(void)
 
 static void WLESS_UART_sendRadio(void)
 {
+#if WLESS_NRF24_DIAG_CAPTURE_ENABLE == 1U
+    uint16_t diagIndex;
+#endif
 #if WLESS_NRF24_ENABLE == 1
     // Read live values so repeated RADIO? commands also exercise the SPI link.
     WLESS_NRF24_lastStatus = WLESS_NRF24_readRegister(0x07U);
@@ -2168,6 +2171,27 @@ static void WLESS_UART_sendRadio(void)
     WLESS_UART_sendInt((int32_t)WLESS_NRF24_appCrcErrorCount);
     WLESS_UART_sendString(", ASEQERR=");
     WLESS_UART_sendInt((int32_t)WLESS_NRF24_appSequenceAnomalyCount);
+#if WLESS_NRF24_DIAG_CAPTURE_ENABLE == 1U
+    WLESS_UART_sendString(", DICAP=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_diagInvalidCaptured);
+    WLESS_UART_sendString(", DIST=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_diagLastInvalidStatus);
+    WLESS_UART_sendString(", DIFIFO=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_diagLastInvalidFifo);
+    WLESS_UART_sendString(", DIRC=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_diagLastInvalidReceivedCrc);
+    WLESS_UART_sendString(", DICC=");
+    WLESS_UART_sendInt((int32_t)WLESS_NRF24_diagLastInvalidCalculatedCrc);
+    WLESS_UART_sendString(", DIB=");
+    for(diagIndex = 0U; diagIndex < 13U; diagIndex++)
+    {
+        if(diagIndex != 0U)
+        {
+            WLESS_UART_sendString("/");
+        }
+        WLESS_UART_sendInt((int32_t)WLESS_NRF24_diagLastInvalidPayload[diagIndex]);
+    }
+#endif
     WLESS_UART_sendString(", ZSEQ=");
     WLESS_UART_sendInt((int32_t)WLESS_NRF24_rxPowerZeroSequence);
     WLESS_UART_sendString(", ZDEL=");

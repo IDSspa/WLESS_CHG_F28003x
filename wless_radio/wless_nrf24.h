@@ -5,6 +5,11 @@
 #include <stdint.h>
 #include "wless_nrf24_settings.h"
 
+/* Test-only capture; keep zero in the operational firmware. */
+#ifndef WLESS_NRF24_DIAG_CAPTURE_ENABLE
+#define WLESS_NRF24_DIAG_CAPTURE_ENABLE 0U
+#endif
+
 extern volatile uint16_t WLESS_NRF24_initOk;
 extern volatile uint16_t WLESS_NRF24_irqPending;
 extern volatile uint32_t WLESS_NRF24_irqCount;
@@ -37,6 +42,14 @@ extern volatile uint32_t WLESS_NRF24_appCrcErrorCount;
 extern volatile uint32_t WLESS_NRF24_appSequenceAnomalyCount;
 extern volatile uint16_t WLESS_NRF24_rxPowerZeroSequence;
 extern volatile uint16_t WLESS_NRF24_rxPowerZeroSequenceDelta;
+#if WLESS_NRF24_DIAG_CAPTURE_ENABLE == 1U
+extern volatile uint32_t WLESS_NRF24_diagInvalidCaptured;
+extern volatile uint8_t WLESS_NRF24_diagLastInvalidPayload[13];
+extern volatile uint8_t WLESS_NRF24_diagLastInvalidStatus;
+extern volatile uint8_t WLESS_NRF24_diagLastInvalidFifo;
+extern volatile uint16_t WLESS_NRF24_diagLastInvalidReceivedCrc;
+extern volatile uint16_t WLESS_NRF24_diagLastInvalidCalculatedCrc;
+#endif
 
 void WLESS_NRF24_init(void);
 void WLESS_NRF24_service(void);
