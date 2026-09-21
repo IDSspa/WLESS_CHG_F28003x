@@ -686,7 +686,7 @@ void CLLLC_initGlobalVariables(void)
     CLLLC_iTankSensed_pu = 0.0f;
     CLLLC_iTankModSensed_pu = 0.0f;
     CLLLC_iTankModAmpsPerPu = CLLLC_ITANK_MOD_MAX_SENSE_AMPS;
-    CLLLC_iTankModLimit_Amps = 5.0f;
+    CLLLC_iTankModLimit_Amps = 5.25f;
     CLLLC_unusedAdca5SensedOffset_pu = 0.0f;
     CLLLC_iTankSensedOffset_pu = 0.5f;
     CLLLC_iTankModSensedOffset_pu = 0.120f / 3.3f;

@@ -4,9 +4,7 @@
 #include "wless_sm/wless_sm.h"
 #include "wless_radio/wless_nrf24.h"
 
-#define UNIPD_V_BAT_MAX_ALG        (218.0f)
 #define UNIPD_V_BAT_MIN_ALG        (37.5f)
-#define UNIPD_V_DC_MAX_ALG         (500.0f)
 #define UNIPD_V_DC_MIN_ALG         (62.5f)
 
 #ifndef UNIPD_LOW_VOLTAGE_TEST_LIMITS
@@ -82,7 +80,7 @@ volatile float UNIPD_bbcMappedDutyB_pu;
 volatile float UNIPD_bbcAppliedDutyA_pu;
 volatile float UNIPD_bbcAppliedDutyB_pu;
 volatile unsigned int UNIPD_bbcPowerOutputDutyRampEnable = 1U;
-volatile float UNIPD_bbcPowerOutputDutyRampStep_pu = 0.00002f;
+volatile float UNIPD_bbcPowerOutputDutyRampStep_pu = 0.0005f;
 volatile float UNIPD_bbcRampedDutyA_pu;
 volatile float UNIPD_bbcRampedDutyB_pu;
 volatile unsigned int UNIPD_resetControlStatesCommand;
@@ -144,6 +142,7 @@ volatile unsigned int UNIPD_wptCaptureCount;
 volatile unsigned int UNIPD_wptCaptureDecimation =
         UNIPD_WPT_CAPTURE_DECIMATION_DEFAULT;
 volatile unsigned int UNIPD_wptCaptureDropTriggerEnable;
+volatile unsigned int UNIPD_wptCaptureHfcFaultTriggerEnable;
 volatile unsigned int UNIPD_wptCaptureTriggerReason;
 static volatile unsigned int UNIPD_wptCaptureWriteIndex;
 static volatile unsigned int UNIPD_wptCaptureDecimationCount;
@@ -155,11 +154,12 @@ static UNIPD_WptCaptureSample
 
 static float unipd_clampf(float value, float min_value, float max_value);
 static void unipd_captureWptCycle(void);
+static void unipd_latchWptHfcFaultSnapshot(void);
 
 volatile unsigned int UNIPD_wptIntegrationEnable;
 volatile float UNIPD_wptVdcSourceRef_Volts = 12.0f;
 volatile float UNIPD_wptVdcLoadRef_Volts = 12.0f;
-volatile float UNIPD_wptCoilCurrentMax_Amps = 40.0f;
+volatile float UNIPD_wptCoilCurrentMax_Amps = UNIPD_WPT_COIL_CURRENT_MAX_ALG;
 volatile float UNIPD_wptCoilCurrentMin_Amps;
 volatile float UNIPD_wptTxPowerLimit_Watts;
 volatile float UNIPD_wptRemotePowerLimit_Watts;
@@ -209,6 +209,17 @@ volatile uint16_t UNIPD_wptHfcEpwm2TbprdLast;
 volatile uint16_t UNIPD_wptHfcEpwm1TbctlLast;
 volatile uint16_t UNIPD_wptHfcEpwm2TbctlLast;
 volatile float UNIPD_wptHfcFaultVdc_Volts;
+volatile unsigned int UNIPD_wptHfcFaultSnapshotValid;
+volatile unsigned int UNIPD_wptHfcFaultSnapshotCode;
+volatile uint32_t UNIPD_wptHfcFaultSnapshotTick;
+volatile float UNIPD_wptHfcFaultSnapshotCoilPhysical_Amps;
+volatile uint16_t UNIPD_wptHfcFaultSnapshotCoilRaw;
+volatile float UNIPD_wptHfcFaultSnapshotCoilOffset_pu;
+volatile float UNIPD_wptHfcFaultSnapshotCoilAmpsPerPu;
+volatile float UNIPD_wptHfcFaultSnapshotCoilLimit_Amps;
+volatile float UNIPD_wptHfcFaultSnapshotPhaseRequested_pu;
+volatile float UNIPD_wptHfcFaultSnapshotPhaseApplied_pu;
+volatile float UNIPD_wptHfcFaultSnapshotHardwarePhase_pu;
 UNIPD_RxTransferredPowerControlOutput UNIPD_wptRxOutput;
 UNIPD_RemoteCoilLimitControlOutput UNIPD_wptHfcOutput;
 
@@ -283,6 +294,7 @@ static void unipd_updateWptHfcActuator(unsigned int role)
         UNIPD_wptHfcPhaseLast_pu = UNIPD_wptHfcPhaseApplied_pu;
         UNIPD_wptHfcPhaseTicksLast = CLLLC_pwmPhaseShiftPrimLegs_ticks;
         UNIPD_wptHfcFaultVdc_Volts = UNIPD_bbcInputs.v_dc;
+        unipd_latchWptHfcFaultSnapshot();
         UNIPD_disableWptHfcActuator();
         return;
     }
@@ -432,7 +444,19 @@ void UNIPD_armWptCapture(void)
     UNIPD_wptCaptureWriteIndex = 0U;
     UNIPD_wptCaptureDecimationCount = 0U;
     UNIPD_wptCaptureDropTriggerEnable = 0U;
+    UNIPD_wptCaptureHfcFaultTriggerEnable = 0U;
     UNIPD_wptCaptureTriggerReason = 0U;
+    UNIPD_wptHfcFaultSnapshotValid = 0U;
+    UNIPD_wptHfcFaultSnapshotCode = 0U;
+    UNIPD_wptHfcFaultSnapshotTick = 0UL;
+    UNIPD_wptHfcFaultSnapshotCoilPhysical_Amps = 0.0f;
+    UNIPD_wptHfcFaultSnapshotCoilRaw = 0U;
+    UNIPD_wptHfcFaultSnapshotCoilOffset_pu = 0.0f;
+    UNIPD_wptHfcFaultSnapshotCoilAmpsPerPu = 0.0f;
+    UNIPD_wptHfcFaultSnapshotCoilLimit_Amps = 0.0f;
+    UNIPD_wptHfcFaultSnapshotPhaseRequested_pu = 0.0f;
+    UNIPD_wptHfcFaultSnapshotPhaseApplied_pu = 0.0f;
+    UNIPD_wptHfcFaultSnapshotHardwarePhase_pu = 0.0f;
     unipd_wptIntegrationClearSequence = 0UL;
     unipd_wptCaptureDropTriggerQualified = 0U;
 }
@@ -443,10 +467,50 @@ void UNIPD_armWptCaptureDropTrigger(void)
     UNIPD_wptCaptureDropTriggerEnable = 1U;
 }
 
+void UNIPD_armWptCaptureHfcFaultTrigger(void)
+{
+    UNIPD_armWptCapture();
+    UNIPD_wptCaptureHfcFaultTriggerEnable = 1U;
+}
+
 void UNIPD_stopWptCapture(void)
 {
     UNIPD_wptCaptureArmed = 0U;
     UNIPD_wptCaptureFrozen = 1U;
+}
+
+static void unipd_latchWptHfcFaultSnapshot(void)
+{
+    if(UNIPD_wptHfcFaultSnapshotValid == 0U)
+    {
+        UNIPD_wptHfcFaultSnapshotValid = 1U;
+        UNIPD_wptHfcFaultSnapshotCode = UNIPD_wptHfcActuatorFault;
+        UNIPD_wptHfcFaultSnapshotTick = WLESS_SM_tickCounter;
+        UNIPD_wptHfcFaultSnapshotCoilPhysical_Amps =
+                UNIPD_wptLocalCoilPhysical_Amps;
+        UNIPD_wptHfcFaultSnapshotCoilRaw = CLLLC_iTankModSensedRaw;
+        UNIPD_wptHfcFaultSnapshotCoilOffset_pu =
+                CLLLC_iTankModSensedOffset_pu;
+        UNIPD_wptHfcFaultSnapshotCoilAmpsPerPu =
+                CLLLC_iTankModAmpsPerPu;
+        UNIPD_wptHfcFaultSnapshotCoilLimit_Amps =
+                CLLLC_iTankModLimit_Amps;
+        UNIPD_wptHfcFaultSnapshotPhaseRequested_pu =
+                UNIPD_wptHfcPhaseRequested_pu;
+        UNIPD_wptHfcFaultSnapshotPhaseApplied_pu =
+                UNIPD_wptHfcPhaseApplied_pu;
+        UNIPD_wptHfcFaultSnapshotHardwarePhase_pu =
+                UNIPD_wptHfcHardwarePhase_pu;
+    }
+
+    if((UNIPD_wptCaptureHfcFaultTriggerEnable != 0U) &&
+       (UNIPD_wptCaptureArmed != 0U) &&
+       (UNIPD_wptCaptureFrozen == 0U))
+    {
+        UNIPD_wptCaptureTriggerReason = 4U;
+        UNIPD_wptCaptureArmed = 0U;
+        UNIPD_wptCaptureFrozen = 1U;
+    }
 }
 
 unsigned int UNIPD_getWptCaptureSample(unsigned int chronologicalIndex,
@@ -555,7 +619,7 @@ static void unipd_captureWptCycle(void)
      * dropout reale, senza dipendere dalla normale evoluzione di PREF durante
      * il transitorio di salita.
      */
-    if((UNIPD_wptCaptureDropTriggerEnable != 0U) &&
+    else if((UNIPD_wptCaptureDropTriggerEnable != 0U) &&
        (WLESS_SM_localRole == WLESS_SM_ROLE_LOAD))
     {
         if(unipd_wptCaptureDropTriggerQualified == 0U)
@@ -620,6 +684,13 @@ static void unipd_captureBbcCycle(void)
 
     sample = &UNIPD_bbcCaptureBuffer[UNIPD_bbcCaptureWriteIndex];
     sample->v_dc = UNIPD_bbcInputs.v_dc;
+    sample->vbus_raw_1 = (unsigned int)TTPLPFC_VBUS_FB;
+    sample->vbus_raw_2 = (unsigned int)TTPLPFC_VBUS_FB_2;
+    sample->vbus_pu = TTPLPFC_vBus_sensed_pu;
+    sample->vbus_uncorrected_mV = TTPLPFC_vBus_sensed_pu *
+            TTPLPFC_VDCBUS_MAX_SENSE;
+    sample->vbus2_raw = (unsigned int)TTPLPFC_VBUS2_FB;
+    sample->vbus2_pu = TTPLPFC_vbus2_pu;
     sample->v_bat = UNIPD_bbcInputs.v_bat;
     sample->i_l_a = UNIPD_bbcInputs.i_l_a;
     sample->i_l_b = UNIPD_bbcInputs.i_l_b;
@@ -1060,6 +1131,10 @@ void UNIPD_runTransferredPowerIntegration(void)
        (UNIPD_wptHfcActuatorEnable != 0U))
     {
         UNIPD_wptHfcActuatorFault = 8U;
+        UNIPD_wptHfcPhaseLast_pu = UNIPD_wptHfcPhaseApplied_pu;
+        UNIPD_wptHfcPhaseTicksLast = CLLLC_pwmPhaseShiftPrimLegs_ticks;
+        UNIPD_wptHfcFaultVdc_Volts = UNIPD_bbcInputs.v_dc;
+        unipd_latchWptHfcFaultSnapshot();
         UNIPD_disableWptHfcActuator();
     }
     localCoilCurrent = UNIPD_wptLocalCoilPhysical_Amps;
@@ -1108,7 +1183,17 @@ void UNIPD_runTransferredPowerIntegration(void)
 
     if(role == (unsigned int)WLESS_SM_ROLE_SOURCE)
     {
-        if(UNIPD_wptTxPowerSeedPending != 0U)
+        /*
+         * WPT is enabled before the HFC actuator for the distributed FSM.
+         * Do not consume the SOURCE seed merely because the SOURCE role is
+         * active: with a discharged DCLINK that would clamp it to a few watts
+         * and force a UART re-arm while the radio exchange is already active.
+         * Apply it only once HFC has actually been armed and the local source
+         * bus has reached the valid UniPD measurement range.
+         */
+        if((UNIPD_wptTxPowerSeedPending != 0U) &&
+           (UNIPD_wptHfcActuatorEnable != 0U) &&
+           (UNIPD_bbcInputs.v_dc >= UNIPD_vDcMinAlg_Volts))
         {
             float seedVdc = unipd_clampf(UNIPD_bbcInputs.v_dc,
                                         UNIPD_vDcMinAlg_Volts,

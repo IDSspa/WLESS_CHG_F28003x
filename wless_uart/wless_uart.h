@@ -7,6 +7,14 @@
 #define WLESS_UART_BAUDRATE        115200UL
 #define WLESS_UART_CMD_MAX_LEN     16U
 
+/*
+ * Temporary BOOST diagnosis: in UH=1, allow UW=<mV> to replace only the
+ * VBAT input of UniPD.  VDC and both BBC branch-current inputs remain
+ * physical, so this cannot turn the power-stage test into a full synthetic
+ * simulation.  Set back to 0 after the VIN scaling investigation.
+ */
+#define WLESS_UART_UNIPD_VBAT_DIAG_OVERRIDE_ENABLE   1U
+
 extern const int FIRMWARE_RELEASE;
 
 extern volatile uint32_t WLESS_UART_rxByteCount;

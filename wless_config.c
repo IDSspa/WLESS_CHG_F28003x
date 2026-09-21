@@ -6,6 +6,7 @@
 #include "wless_config.h"
 #include "clllc/clllc.h"
 #include "ttplpfc/ttplpfc.h"
+#include "unipd/unipd_control.h"
 
 #define WLESS_CONFIG_FLASH_A_ADDRESS       0x09E000UL
 #define WLESS_CONFIG_FLASH_B_ADDRESS       0x09F000UL
@@ -19,9 +20,11 @@
 
 #define WLESS_CONFIG_DEFAULT_ITANK_OFFSET_MV       120U
 #define WLESS_CONFIG_DEFAULT_ITANK_SENS_MV_A       573U
-#define WLESS_CONFIG_DEFAULT_ITANK_LIMIT_MA        5000U
+#define WLESS_CONFIG_DEFAULT_ITANK_LIMIT_MA        WLESS_CONFIG_ITANK_LIMIT_MAX_MA
 #define WLESS_CONFIG_DEFAULT_ILA_OFFSET_RAW        2048U
 #define WLESS_CONFIG_DEFAULT_ILB_OFFSET_RAW        2048U
+#define WLESS_CONFIG_DEFAULT_WPT_LOAD_OFFSET_MA    0U
+#define WLESS_CONFIG_WPT_LOAD_OFFSET_MAX_MA        5000U
 
 WLESS_Config WLESS_Config_active;
 WLESS_Config WLESS_Config_pending;
@@ -66,6 +69,7 @@ static void WLESS_Config_encode(uint16_t *record, uint32_t sequence)
     record[8] = WLESS_Config_active.iTankLimit_mA;
     record[9] = WLESS_Config_active.iLAOffsetRaw;
     record[10] = WLESS_Config_active.iLBOffsetRaw;
+    record[11] = WLESS_Config_active.wptLoadCoilOffset_mA;
     record[WLESS_CONFIG_CRC_INDEX] =
             WLESS_Config_crc16(record, WLESS_CONFIG_CRC_INDEX);
     record[WLESS_CONFIG_COMMIT_INDEX] = WLESS_CONFIG_COMMIT;
@@ -92,6 +96,9 @@ static uint16_t WLESS_Config_decode(uint32_t address, WLESS_Config *config,
     config->iTankLimit_mA = record[8];
     config->iLAOffsetRaw = record[9];
     config->iLBOffsetRaw = record[10];
+    /* Word 11 was reserved in schema 1: old valid records decode as zero. */
+    config->wptLoadCoilOffset_mA = (record[11] == 0xFFFFU) ?
+            WLESS_CONFIG_DEFAULT_WPT_LOAD_OFFSET_MA : record[11];
     *sequence = (uint32_t)record[4] | ((uint32_t)record[5] << 16U);
     return WLESS_Config_validate(config);
 }
@@ -118,6 +125,8 @@ static void WLESS_Config_applyToControl(void)
             ((float32_t)WLESS_Config_active.iLAOffsetRaw) / 4096.0f;
     TTPLPFC_iL2_senseOffset_pu =
             ((float32_t)WLESS_Config_active.iLBOffsetRaw) / 4096.0f;
+    UNIPD_wptLoadCoilOffset_Amps =
+            ((float)WLESS_Config_active.wptLoadCoilOffset_mA) * 0.001f;
 }
 
 void WLESS_Config_loadDefaults(void)
@@ -132,6 +141,8 @@ void WLESS_Config_loadDefaults(void)
             WLESS_CONFIG_DEFAULT_ILA_OFFSET_RAW;
     WLESS_Config_pending.iLBOffsetRaw =
             WLESS_CONFIG_DEFAULT_ILB_OFFSET_RAW;
+    WLESS_Config_pending.wptLoadCoilOffset_mA =
+            WLESS_CONFIG_DEFAULT_WPT_LOAD_OFFSET_MA;
 }
 
 uint16_t WLESS_Config_validate(const WLESS_Config *config)
@@ -140,11 +151,13 @@ uint16_t WLESS_Config_validate(const WLESS_Config *config)
        (config->iTankSensitivity_mV_A < 100U) ||
        (config->iTankSensitivity_mV_A > 1000U) ||
        (config->iTankLimit_mA == 0U) ||
-       (config->iTankLimit_mA > 5000U) ||
+       (config->iTankLimit_mA > WLESS_CONFIG_ITANK_LIMIT_MAX_MA) ||
        (config->iLAOffsetRaw < 1500U) ||
        (config->iLAOffsetRaw > 2600U) ||
-       (config->iLBOffsetRaw < 1500U) ||
-       (config->iLBOffsetRaw > 2600U))
+        (config->iLBOffsetRaw < 1500U) ||
+        (config->iLBOffsetRaw > 2600U) ||
+        (config->wptLoadCoilOffset_mA >
+                WLESS_CONFIG_WPT_LOAD_OFFSET_MAX_MA))
     {
         return 0U;
     }

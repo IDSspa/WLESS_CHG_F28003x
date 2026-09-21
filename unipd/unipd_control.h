@@ -11,6 +11,11 @@ extern "C" {
 #define UNIPD_WPT_POWER_W_PER_LSB       (1.0f)
 #define UNIPD_WPT_COIL_ERR_A_PER_LSB    (0.01f)
 
+/* Limiti dell'algoritmo UniPD esposti anche al confine UART. */
+#define UNIPD_V_BAT_MAX_ALG             (218.0f)
+#define UNIPD_V_DC_MAX_ALG              (500.0f)
+#define UNIPD_WPT_COIL_CURRENT_MAX_ALG  (40.0f)
+
 typedef struct
 {
     float i_l_err_a_p;
@@ -134,7 +139,10 @@ typedef struct
     unsigned int valid_mask;
 } UNIPD_BbcIntegrationInputs;
 
-#define UNIPD_BBC_CAPTURE_LENGTH       32U
+/* Temporary VBUS/VBUS2 correlation capture: preserve RAM headroom for the
+ * additional independent ADC observation. Restore 32U with the diagnostic
+ * fields removed. */
+#define UNIPD_BBC_CAPTURE_LENGTH       16U
 #define UNIPD_BBC_CAPTURE_DECIMATION   15U
 #define UNIPD_WPT_CAPTURE_LENGTH       96U
 #define UNIPD_WPT_CAPTURE_DECIMATION_DEFAULT 21U
@@ -142,6 +150,13 @@ typedef struct
 typedef struct
 {
     float v_dc;
+    /* Temporary VBUS path diagnostic fields. */
+    unsigned int vbus_raw_1;
+    unsigned int vbus_raw_2;
+    float vbus_pu;
+    float vbus_uncorrected_mV;
+    unsigned int vbus2_raw;
+    float vbus2_pu;
     float v_bat;
     float i_l_a;
     float i_l_b;
@@ -291,6 +306,17 @@ extern volatile uint16_t UNIPD_wptHfcEpwm2TbprdLast;
 extern volatile uint16_t UNIPD_wptHfcEpwm1TbctlLast;
 extern volatile uint16_t UNIPD_wptHfcEpwm2TbctlLast;
 extern volatile float UNIPD_wptHfcFaultVdc_Volts;
+extern volatile unsigned int UNIPD_wptHfcFaultSnapshotValid;
+extern volatile unsigned int UNIPD_wptHfcFaultSnapshotCode;
+extern volatile uint32_t UNIPD_wptHfcFaultSnapshotTick;
+extern volatile float UNIPD_wptHfcFaultSnapshotCoilPhysical_Amps;
+extern volatile uint16_t UNIPD_wptHfcFaultSnapshotCoilRaw;
+extern volatile float UNIPD_wptHfcFaultSnapshotCoilOffset_pu;
+extern volatile float UNIPD_wptHfcFaultSnapshotCoilAmpsPerPu;
+extern volatile float UNIPD_wptHfcFaultSnapshotCoilLimit_Amps;
+extern volatile float UNIPD_wptHfcFaultSnapshotPhaseRequested_pu;
+extern volatile float UNIPD_wptHfcFaultSnapshotPhaseApplied_pu;
+extern volatile float UNIPD_wptHfcFaultSnapshotHardwarePhase_pu;
 extern UNIPD_RxTransferredPowerControlOutput UNIPD_wptRxOutput;
 extern UNIPD_RemoteCoilLimitControlOutput UNIPD_wptHfcOutput;
 extern volatile unsigned int UNIPD_wptCaptureArmed;
@@ -298,6 +324,7 @@ extern volatile unsigned int UNIPD_wptCaptureFrozen;
 extern volatile unsigned int UNIPD_wptCaptureCount;
 extern volatile unsigned int UNIPD_wptCaptureDecimation;
 extern volatile unsigned int UNIPD_wptCaptureDropTriggerEnable;
+extern volatile unsigned int UNIPD_wptCaptureHfcFaultTriggerEnable;
 extern volatile unsigned int UNIPD_wptCaptureTriggerReason;
 
 void UNIPD_armBbcCapture(void);
@@ -306,6 +333,7 @@ unsigned int UNIPD_getBbcCaptureSample(unsigned int chronologicalIndex,
                                        UNIPD_BbcCaptureSample *sample);
 void UNIPD_armWptCapture(void);
 void UNIPD_armWptCaptureDropTrigger(void);
+void UNIPD_armWptCaptureHfcFaultTrigger(void);
 void UNIPD_stopWptCapture(void);
 unsigned int UNIPD_getWptCaptureSample(unsigned int chronologicalIndex,
                                        UNIPD_WptCaptureSample *sample);

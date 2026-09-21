@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+/* 3.3 V ADC, offset 120 mV e sensibilita' 573 mV/A: 5.5 A interi massimi. */
+#define WLESS_CONFIG_ITANK_LIMIT_MAX_MA 5500U
+
 #define WLESS_CONFIG_SCHEMA_VERSION       1U
 #define WLESS_CONFIG_SOURCE_DEFAULT       0U
 #define WLESS_CONFIG_SOURCE_FLASH_A       1U
@@ -15,6 +18,7 @@ typedef struct
     uint16_t iTankLimit_mA;
     uint16_t iLAOffsetRaw;
     uint16_t iLBOffsetRaw;
+    uint16_t wptLoadCoilOffset_mA;
 } WLESS_Config;
 
 extern WLESS_Config WLESS_Config_active;

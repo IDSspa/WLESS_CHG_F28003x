@@ -14,7 +14,20 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1067;
+const int FIRMWARE_RELEASE = 1074;
+
+/*
+ * UART power-command envelope.  These values mirror the native UniPD / BBC
+ * model and sensing limits; they are deliberately not bench-specific limits.
+ * Battery power/current itself is a BMS contract, so UA keeps the BBC current
+ * protection envelope rather than inventing a separate power ceiling here.
+ */
+#define WLESS_UART_UNIPD_VBAT_MAX_MV       (218000UL)
+#define WLESS_UART_UNIPD_VDC_MAX_MV        (500000UL)
+#define WLESS_UART_UNIPD_COIL_MAX_MA       (40000UL)
+#define WLESS_UART_BBC_CURRENT_MAX_MA      (30000UL)
+/* WPT power is transported as a signed int16 with 1 W/LSB. */
+#define WLESS_UART_WPT_POWER_MAX_W          (32767UL)
 
 #define WLESS_UART_KEY_WH          (1U << 0)
 #define WLESS_UART_KEY_VB          (1U << 1)
@@ -60,7 +73,7 @@ typedef struct
 {
     const char *key;
     uint8_t keyLen;
-    uint16_t *destination;
+    uint32_t *destination;
     uint32_t id;
     WLESS_UART_EntryType type;
 } WLESS_UART_ParseEntry;
@@ -92,32 +105,32 @@ typedef struct
 static WLESS_RingBuffer WLESS_UART_rxBuffer;
 static char WLESS_UART_commandBuffer[WLESS_UART_CMD_MAX_LEN];
 static uint16_t WLESS_UART_commandIndex;
-static uint16_t WLESS_UART_wh;
-static uint16_t WLESS_UART_vBus;
-static uint16_t WLESS_UART_iBat;
-static uint16_t WLESS_UART_iCoil;
-static uint16_t WLESS_UART_unipdTest;
-static uint16_t WLESS_UART_unipdMap;
-static uint16_t WLESS_UART_unipdDutyMaxMilli = 350U;
-static uint16_t WLESS_UART_unipdVdcRef;
-static uint16_t WLESS_UART_unipdVdcRefConfig = 7U;
-static uint16_t WLESS_UART_unipdVdcRefMilli;
+static uint32_t WLESS_UART_wh;
+static uint32_t WLESS_UART_vBus;
+static uint32_t WLESS_UART_iBat;
+static uint32_t WLESS_UART_iCoil;
+static uint32_t WLESS_UART_unipdTest;
+static uint32_t WLESS_UART_unipdMap;
+static uint32_t WLESS_UART_unipdDutyMaxMilli = 350U;
+static uint32_t WLESS_UART_unipdVdcRef;
+static uint32_t WLESS_UART_unipdVdcRefConfig = 7U;
+static uint32_t WLESS_UART_unipdVdcRefMilli;
 static uint32_t WLESS_UART_unipdVdcRefMilliConfig = 7000UL;
-static uint16_t WLESS_UART_unipdIBatMaxMilli;
-static uint16_t WLESS_UART_unipdIBatMaxMilliConfig = 200U;
-static uint16_t WLESS_UART_unipdVBatMilli;
-static uint16_t WLESS_UART_unipdVBatMilliConfig = 6000U;
-static uint16_t WLESS_UART_unipdVdcTripMilli;
-static uint16_t WLESS_UART_unipdILTripMilli;
-static uint16_t WLESS_UART_unipdILTripCycles;
-static uint16_t WLESS_UART_unipdVdcTripVolts;
-static uint16_t WLESS_UART_unipdFaultReset;
-static uint16_t WLESS_UART_unipdHybrid;
-static uint16_t WLESS_UART_unipdEnable;
-static uint16_t WLESS_UART_unipdILTestMilli;
-static uint16_t WLESS_UART_unipdOpenLoopBoost;
-static uint16_t WLESS_UART_unipdRampStepMicro;
-static uint16_t WLESS_UART_unipdHybridActive;
+static uint32_t WLESS_UART_unipdIBatMaxMilli;
+static uint32_t WLESS_UART_unipdIBatMaxMilliConfig = 200U;
+static uint32_t WLESS_UART_unipdVBatMilli;
+static uint32_t WLESS_UART_unipdVBatMilliConfig = 6000U;
+static uint32_t WLESS_UART_unipdVdcTripMilli;
+static uint32_t WLESS_UART_unipdILTripMilli;
+static uint32_t WLESS_UART_unipdILTripCycles;
+static uint32_t WLESS_UART_unipdVdcTripVolts;
+static uint32_t WLESS_UART_unipdFaultReset;
+static uint32_t WLESS_UART_unipdHybrid;
+static uint32_t WLESS_UART_unipdEnable;
+static uint32_t WLESS_UART_unipdILTestMilli;
+static uint32_t WLESS_UART_unipdOpenLoopBoost;
+static uint32_t WLESS_UART_unipdRampStepMicro;
+static uint32_t WLESS_UART_unipdHybridActive;
 
 volatile uint32_t WLESS_UART_rxByteCount;
 volatile uint32_t WLESS_UART_rxErrorCount;
@@ -266,7 +279,7 @@ static int16_t WLESS_UART_parseToken(const char *token, uint16_t length,
         const WLESS_UART_ParseEntry *entry = &WLESS_UART_parseTable[i];
         const char *p;
         const char *end;
-        uint16_t value = 0U;
+        uint32_t value = 0UL;
 
         if((length < entry->keyLen) ||
            (strncmp(token, entry->key, entry->keyLen) != 0))
@@ -301,15 +314,15 @@ static int16_t WLESS_UART_parseToken(const char *token, uint16_t length,
 
         while((p < end) && WLESS_UART_isDigit(*p))
         {
-            uint16_t digit = (uint16_t)(*p - '0');
+            uint32_t digit = (uint32_t)(*p - '0');
 
-            if((value > 6553U) ||
-               ((value == 6553U) && (digit > 5U)))
+            if((value > 429496729UL) ||
+               ((value == 429496729UL) && (digit > 5UL)))
             {
                 return -3;
             }
 
-            value = (uint16_t)(value * 10U + digit);
+            value = value * 10UL + digit;
             p++;
         }
 
@@ -394,6 +407,9 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         WLESS_UART_sendInt((int32_t)WLESS_Config_active.iLAOffsetRaw);
         WLESS_UART_sendString(",");
         WLESS_UART_sendInt((int32_t)WLESS_Config_active.iLBOffsetRaw);
+        WLESS_UART_sendString(",");
+        WLESS_UART_sendInt((int32_t)
+                WLESS_Config_active.wptLoadCoilOffset_mA);
         WLESS_UART_sendString("\r\n");
         return 0U;
     }
@@ -515,7 +531,8 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(WLESS_UART_parseExactUnsigned(command, "IM=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
-        if((wptValue == 0UL) || (wptValue > 5000UL))
+        if((wptValue == 0UL) ||
+           (wptValue > WLESS_CONFIG_ITANK_LIMIT_MAX_MA))
         {
             WLESS_UART_sendString("IM RANGE\r\n");
             return 1U;
@@ -975,7 +992,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(WLESS_UART_parseExactUnsigned(command, "WPTISRC=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
-        if(wptValue > 100000UL)
+        if(wptValue > WLESS_UART_UNIPD_COIL_MAX_MA)
         {
             WLESS_UART_sendString("WPTISRC RANGE\r\n");
             return 1U;
@@ -991,7 +1008,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(WLESS_UART_parseExactUnsigned(command, "WPTILOAD=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
-        if(wptValue > 100000UL)
+        if(wptValue > WLESS_UART_UNIPD_COIL_MAX_MA)
         {
             WLESS_UART_sendString("WPTILOAD RANGE\r\n");
             return 1U;
@@ -1007,7 +1024,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(WLESS_UART_parseExactUnsigned(command, "WPTPLIMINIT=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
-        if(wptValue > 10000UL)
+        if(wptValue > WLESS_UART_WPT_POWER_MAX_W)
         {
             WLESS_UART_sendString("WPTPLIMINIT RANGE\r\n");
             return 1U;
@@ -1024,7 +1041,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(WLESS_UART_parseExactUnsigned(command, "WPTPLOADINIT=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
-        if(wptValue > 10000UL)
+        if(wptValue > WLESS_UART_WPT_POWER_MAX_W)
         {
             WLESS_UART_sendString("WPTPLOADINIT RANGE\r\n");
             return 1U;
@@ -1040,13 +1057,14 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(WLESS_UART_parseExactUnsigned(command, "WPTIZERO=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
-        if(wptValue > 100000UL)
+        if(wptValue > WLESS_UART_UNIPD_COIL_MAX_MA)
         {
             WLESS_UART_sendString("WPTIZERO RANGE\r\n");
             return 1U;
         }
         UNIPD_wptIntegrationEnable = 0U;
         UNIPD_wptLoadCoilOffset_Amps = (float)wptValue * 0.001f;
+        WLESS_Config_pending.wptLoadCoilOffset_mA = (uint16_t)wptValue;
         UNIPD_resetControlStatesCommand = 1U;
         WLESS_UART_sendWptIntegration();
         return 0U;
@@ -1099,6 +1117,14 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         return 0U;
     }
 
+    if(strcmp(command, "WPTCAP=3") == 0)
+    {
+        WLESS_UART_commandCount++;
+        UNIPD_armWptCaptureHfcFaultTrigger();
+        WLESS_UART_sendWptCaptureStatus();
+        return 0U;
+    }
+
     if(strcmp(command, "WPTCAP=0") == 0)
     {
         WLESS_UART_commandCount++;
@@ -1137,7 +1163,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(WLESS_UART_parseExactUnsigned(command, "WPTSRC=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
-        if((wptValue < 1000UL) || (wptValue > 300000UL))
+        if((wptValue < 1000UL) || (wptValue > WLESS_UART_UNIPD_VDC_MAX_MV))
         {
             WLESS_UART_sendString("WPTSRC RANGE\r\n");
             return 1U;
@@ -1151,7 +1177,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(WLESS_UART_parseExactUnsigned(command, "WPTLOAD=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
-        if((wptValue < 1000UL) || (wptValue > 300000UL))
+        if((wptValue < 1000UL) || (wptValue > WLESS_UART_UNIPD_VDC_MAX_MV))
         {
             WLESS_UART_sendString("WPTLOAD RANGE\r\n");
             return 1U;
@@ -1165,7 +1191,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(WLESS_UART_parseExactUnsigned(command, "WPTIMAX=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
-        if(wptValue > 100000UL)
+        if(wptValue > WLESS_UART_UNIPD_COIL_MAX_MA)
         {
             WLESS_UART_sendString("WPTIMAX RANGE\r\n");
             return 1U;
@@ -1266,7 +1292,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         UNIPD_bbcPowerOutputEnable = 0U;
         TTPLPFC_BBC_disable();
         if((WLESS_UART_unipdVdcRef > 0U) &&
-           (WLESS_UART_unipdVdcRef <= 300U))
+            (WLESS_UART_unipdVdcRef <= 500U))
         {
             WLESS_UART_unipdVdcRefConfig = WLESS_UART_unipdVdcRef;
             WLESS_UART_unipdVdcRefMilliConfig =
@@ -1281,7 +1307,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         UNIPD_bbcPowerOutputEnable = 0U;
         TTPLPFC_BBC_disable();
         if((WLESS_UART_unipdVdcRefMilli >= 1000U) &&
-           (WLESS_UART_unipdVdcRefMilli <= 60000U))
+            (WLESS_UART_unipdVdcRefMilli <= WLESS_UART_UNIPD_VDC_MAX_MV))
         {
             WLESS_UART_unipdVdcRefMilliConfig = WLESS_UART_unipdVdcRefMilli;
             WLESS_UART_unipdVdcRefConfig =
@@ -1295,7 +1321,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     {
         UNIPD_bbcPowerOutputEnable = 0U;
         TTPLPFC_BBC_disable();
-        if(WLESS_UART_unipdIBatMaxMilli <= 20000U)
+        if(WLESS_UART_unipdIBatMaxMilli <= WLESS_UART_BBC_CURRENT_MAX_MA)
         {
             WLESS_UART_unipdIBatMaxMilliConfig =
                     WLESS_UART_unipdIBatMaxMilli;
@@ -1308,7 +1334,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         UNIPD_bbcPowerOutputEnable = 0U;
         TTPLPFC_BBC_disable();
         if((WLESS_UART_unipdVBatMilli >= 1000U) &&
-           (WLESS_UART_unipdVBatMilli <= 60000U))
+            (WLESS_UART_unipdVBatMilli <= WLESS_UART_UNIPD_VBAT_MAX_MV))
         {
             WLESS_UART_unipdVBatMilliConfig = WLESS_UART_unipdVBatMilli;
             UNIPD_bbcSyntheticInputs.v_bat =
@@ -1321,7 +1347,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         UNIPD_bbcPowerOutputEnable = 0U;
         TTPLPFC_BBC_disable();
         if((WLESS_UART_unipdVdcTripMilli >= 2000U) &&
-           (WLESS_UART_unipdVdcTripMilli <= 60000U))
+            (WLESS_UART_unipdVdcTripMilli <= WLESS_UART_UNIPD_VDC_MAX_MV))
         {
             UNIPD_bbcVdcTripThreshold_Volts =
                     ((float)WLESS_UART_unipdVdcTripMilli) * 0.001f;
@@ -1333,7 +1359,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         UNIPD_bbcPowerOutputEnable = 0U;
         TTPLPFC_BBC_disable();
         if((WLESS_UART_unipdVdcTripVolts >= 2U) &&
-           (WLESS_UART_unipdVdcTripVolts <= 300U))
+            (WLESS_UART_unipdVdcTripVolts <= 500U))
         {
             UNIPD_bbcVdcTripThreshold_Volts =
                     (float)WLESS_UART_unipdVdcTripVolts;
@@ -1345,7 +1371,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         UNIPD_bbcPowerOutputEnable = 0U;
         TTPLPFC_BBC_disable();
         if((WLESS_UART_unipdILTripMilli >= 100U) &&
-           (WLESS_UART_unipdILTripMilli <= 10000U))
+            (WLESS_UART_unipdILTripMilli <= WLESS_UART_BBC_CURRENT_MAX_MA))
         {
             UNIPD_bbcILTripThreshold_Amps =
                     ((float)WLESS_UART_unipdILTripMilli) * 0.001f;
@@ -1477,12 +1503,27 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
                     (WLESS_UART_unipdHybridActive == 1U) ? 1U : 0U;
 #endif
             UNIPD_bbcSyntheticValidMask = UNIPD_BBC_REQUIRED_SIGNAL_MASK;
+            /*
+             * Normal hybrid operation keeps all electrical quantities
+             * physical.  The temporary VBAT diagnostic leaves VDC and the
+             * branch currents physical, while UH=1 may substitute only VBAT
+             * through UW=<mV>.  UH=2 is intentionally unchanged.
+             */
             UNIPD_bbcSyntheticOverrideMask =
                     UNIPD_BBC_REQUIRED_SIGNAL_MASK &
                     ~(UNIPD_BBC_SIGNAL_V_DC |
-                      UNIPD_BBC_SIGNAL_V_BAT |
                       UNIPD_BBC_SIGNAL_I_L_A |
-                      UNIPD_BBC_SIGNAL_I_L_B);
+                      UNIPD_BBC_SIGNAL_I_L_B
+#if WLESS_UART_UNIPD_VBAT_DIAG_OVERRIDE_ENABLE == 0U
+                      | UNIPD_BBC_SIGNAL_V_BAT
+#endif
+                      );
+            if((WLESS_UART_unipdHybridActive != 1U) ||
+               (WLESS_UART_UNIPD_VBAT_DIAG_OVERRIDE_ENABLE == 0U))
+            {
+                UNIPD_bbcSyntheticOverrideMask &=
+                        ~UNIPD_BBC_SIGNAL_V_BAT;
+            }
             UNIPD_bbcSyntheticTestEnable = 1U;
         }
         else
@@ -1606,7 +1647,7 @@ static void WLESS_UART_sendBbcCaptureDump(void)
         return;
     }
 
-    WLESS_UART_sendString("CAPD_COLUMNS,1,n,vdc_mV,vbat_mV,ila_mA,ilb_mA,ilrefA_mA,ilrefB_mA,ilerrA_mA,ilerrB_mA,vlrefA_mV,vlrefB_mV,pbat_mW,rawA_u,rawB_u,intA_u,intB_u,mapA_u,mapB_u,appA_u,appB_u,rampA_u,rampB_u\r\n");
+    WLESS_UART_sendString("CAPD_COLUMNS,3,n,vdc_mV,vbus_raw_1,vbus_raw_2,vbus_pu,vbus_uncorrected_mV,vbus2_raw,vbus2_pu,vbat_mV,ila_mA,ilb_mA,ilrefA_mA,ilrefB_mA,ilerrA_mA,ilerrB_mA,vlrefA_mV,vlrefB_mV,pbat_mW,rawA_u,rawB_u,intA_u,intB_u,mapA_u,mapB_u,appA_u,appB_u,rampA_u,rampB_u\r\n");
     for(index = 0U; index < UNIPD_bbcCaptureCount; index++)
     {
         if(UNIPD_getBbcCaptureSample(index, &sample) == 0U)
@@ -1619,6 +1660,12 @@ static void WLESS_UART_sendBbcCaptureDump(void)
         WLESS_UART_sendString(","); \
         WLESS_UART_sendInt((int32_t)((value) * (scale)))
         WLESS_UART_CAP_FIELD(sample.v_dc, 1000.0f);
+        WLESS_UART_CAP_FIELD(sample.vbus_raw_1, 1.0f);
+        WLESS_UART_CAP_FIELD(sample.vbus_raw_2, 1.0f);
+        WLESS_UART_CAP_FIELD(sample.vbus_pu, 1000000.0f);
+        WLESS_UART_CAP_FIELD(sample.vbus_uncorrected_mV, 1000.0f);
+        WLESS_UART_CAP_FIELD(sample.vbus2_raw, 1.0f);
+        WLESS_UART_CAP_FIELD(sample.vbus2_pu, 1000000.0f);
         WLESS_UART_CAP_FIELD(sample.v_bat, 1000.0f);
         WLESS_UART_CAP_FIELD(sample.i_l_a, 1000.0f);
         WLESS_UART_CAP_FIELD(sample.i_l_b, 1000.0f);
@@ -1951,8 +1998,34 @@ static void WLESS_UART_sendWptCaptureStatus(void)
     WLESS_UART_sendInt((int32_t)UNIPD_wptCaptureDecimation);
     WLESS_UART_sendString(",DROPTRIG=");
     WLESS_UART_sendInt((int32_t)UNIPD_wptCaptureDropTriggerEnable);
+    WLESS_UART_sendString(",HFLTTRIG=");
+    WLESS_UART_sendInt((int32_t)UNIPD_wptCaptureHfcFaultTriggerEnable);
     WLESS_UART_sendString(",REASON=");
     WLESS_UART_sendInt((int32_t)UNIPD_wptCaptureTriggerReason);
+    WLESS_UART_sendString(",FSNAP=");
+    WLESS_UART_sendInt((int32_t)UNIPD_wptHfcFaultSnapshotValid);
+    WLESS_UART_sendString(",FCODE=");
+    WLESS_UART_sendInt((int32_t)UNIPD_wptHfcFaultSnapshotCode);
+    WLESS_UART_sendString(",FTICK=");
+    WLESS_UART_sendInt((int32_t)UNIPD_wptHfcFaultSnapshotTick);
+    WLESS_UART_sendString(",FIPHY_mA=");
+    WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultSnapshotCoilPhysical_Amps * 1000.0f));
+    WLESS_UART_sendString(",FIRAW=");
+    WLESS_UART_sendInt((int32_t)UNIPD_wptHfcFaultSnapshotCoilRaw);
+    WLESS_UART_sendString(",FIOFF_u=");
+    WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultSnapshotCoilOffset_pu * 1000000.0f));
+    WLESS_UART_sendString(",FISCALE_u=");
+    WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultSnapshotCoilAmpsPerPu * 1000000.0f));
+    WLESS_UART_sendString(",FILIM_mA=");
+    WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultSnapshotCoilLimit_Amps * 1000.0f));
+    WLESS_UART_sendString(",FVDC_mV=");
+    WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultVdc_Volts * 1000.0f));
+    WLESS_UART_sendString(",FHREQ_mpu=");
+    WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultSnapshotPhaseRequested_pu * 1000.0f));
+    WLESS_UART_sendString(",FHAPP_mpu=");
+    WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultSnapshotPhaseApplied_pu * 1000.0f));
+    WLESS_UART_sendString(",FHPHY_mpu=");
+    WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultSnapshotHardwarePhase_pu * 1000.0f));
     WLESS_UART_sendString("\r\n");
 }
 
@@ -2036,6 +2109,24 @@ static void WLESS_UART_sendWptCaptureDump(void)
         WLESS_UART_sendInt((int32_t)sample.manual);
         WLESS_UART_sendString(",");
         WLESS_UART_sendInt((int32_t)sample.hfc_fault);
+        WLESS_UART_sendString("\r\n");
+    }
+    if(UNIPD_wptHfcFaultSnapshotValid != 0U)
+    {
+        WLESS_UART_sendString("WPTCAPF,1,TICK=");
+        WLESS_UART_sendInt((int32_t)UNIPD_wptHfcFaultSnapshotTick);
+        WLESS_UART_sendString(",FAULT=");
+        WLESS_UART_sendInt((int32_t)UNIPD_wptHfcFaultSnapshotCode);
+        WLESS_UART_sendString(",IPHY_mA=");
+        WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultSnapshotCoilPhysical_Amps * 1000.0f));
+        WLESS_UART_sendString(",VDC_mV=");
+        WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultVdc_Volts * 1000.0f));
+        WLESS_UART_sendString(",HREQ_mpu=");
+        WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultSnapshotPhaseRequested_pu * 1000.0f));
+        WLESS_UART_sendString(",HAPP_mpu=");
+        WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultSnapshotPhaseApplied_pu * 1000.0f));
+        WLESS_UART_sendString(",HPHY_mpu=");
+        WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcFaultSnapshotHardwarePhase_pu * 1000.0f));
         WLESS_UART_sendString("\r\n");
     }
     WLESS_UART_sendWptCaptureStatus();
