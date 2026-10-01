@@ -14,7 +14,7 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1074;
+const int FIRMWARE_RELEASE = 1104;
 
 /*
  * UART power-command envelope.  These values mirror the native UniPD / BBC
@@ -783,6 +783,94 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         WLESS_UART_sendString(",ICOIL_MIN_mA=");
         WLESS_UART_sendInt((int32_t)WLESS_SM_iCoilMin_mA);
         WLESS_UART_sendString("\r\n");
+        return 0U;
+    }
+
+    if(strcmp(command, "SMBOOT?") == 0)
+    {
+        WLESS_UART_commandCount++;
+        /* Formato compatto: la pagina flash .uartStrings e' limitata a 4 KiB. */
+        WLESS_UART_sendString("SB,1,M=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootSourceMode);
+        WLESS_UART_sendString(",S=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootSourceVBusMin_V);
+        WLESS_UART_sendString(",L=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootLoadVBusMin_V);
+        WLESS_UART_sendString(",BD=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootBbcDutyMax_mpu);
+        WLESS_UART_sendString(",TS=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootTraceState);
+        WLESS_UART_sendString(",TN=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootTraceNextState);
+        WLESS_UART_sendString(",TV=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootTraceVBus_V);
+        WLESS_UART_sendString(",TR=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootTraceRemoteCtrl);
+        WLESS_UART_sendString(",TP=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootTracePhase_mpu);
+        WLESS_UART_sendString(",TE=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootTraceReason);
+        WLESS_UART_sendString(",H=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootHfcHandoffActive);
+        WLESS_UART_sendString("/");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootHfcHandoffPhase_mpu);
+        WLESS_UART_sendString("/");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootHfcHandoffLimit_mpu);
+        WLESS_UART_sendString("\r\n");
+        return 0U;
+    }
+
+    if(WLESS_UART_parseExactUnsigned(command, "SMBOOTMODE=", &wptValue) != 0U)
+    {
+        WLESS_UART_commandCount++;
+        if(wptValue > (uint32_t)WLESS_SM_BOOT_SOURCE_BOOST)
+        {
+            WLESS_UART_sendString("SMBOOTMODE RANGE\r\n");
+            return 1U;
+        }
+        /* Configurazione pre-run: non modifica mai gli attuatori in marcia. */
+        WLESS_SM_bootSourceMode = (WLESS_SM_BootSourceMode)wptValue;
+        WLESS_UART_sendString("SMBOOTMODE OK\r\n");
+        return 0U;
+    }
+
+    if(WLESS_UART_parseExactUnsigned(command, "SMBOOTSRC=", &wptValue) != 0U)
+    {
+        WLESS_UART_commandCount++;
+        if(wptValue > 65535UL)
+        {
+            WLESS_UART_sendString("SMBOOTSRC RANGE\r\n");
+            return 1U;
+        }
+        WLESS_SM_bootSourceVBusMin_V = (uint16_t)wptValue;
+        WLESS_UART_sendString("SMBOOTSRC OK\r\n");
+        return 0U;
+    }
+
+    if(WLESS_UART_parseExactUnsigned(command, "SMBOOTLOAD=", &wptValue) != 0U)
+    {
+        WLESS_UART_commandCount++;
+        if(wptValue > 65535UL)
+        {
+            WLESS_UART_sendString("SMBOOTLOAD RANGE\r\n");
+            return 1U;
+        }
+        WLESS_SM_bootLoadVBusMin_V = (uint16_t)wptValue;
+        WLESS_UART_sendString("SMBOOTLOAD OK\r\n");
+        return 0U;
+    }
+
+    if(WLESS_UART_parseExactUnsigned(command, "SMBOOTDUTY=", &wptValue) != 0U)
+    {
+        WLESS_UART_commandCount++;
+        if(wptValue > 950UL)
+        {
+            WLESS_UART_sendString("SMBD RANGE\r\n");
+            return 1U;
+        }
+        /* Configurazione pre-run: il clamp viene campionato al PRECHARGE. */
+        WLESS_SM_bootBbcDutyMax_mpu = (uint16_t)wptValue;
+        WLESS_UART_sendString("SMBD OK\r\n");
         return 0U;
     }
 
@@ -1578,6 +1666,9 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
 #if WLESS_SM_BUILD_VEHICLE == 1
     if((result.mask & WLESS_UART_KEY_SOURCE) != 0U)
     {
+        /* SOURCE inaugura un nuovo run: uno STOP pendente della sessione
+         * precedente non deve annullare PRECHARGE_SOURCE al primo tick. */
+        WLESS_SM_stopCommand = 0U;
         WLESS_SM_localRole = WLESS_SM_ROLE_SOURCE;
     }
     if((result.mask & WLESS_UART_KEY_LOAD) != 0U)
@@ -1847,7 +1938,8 @@ static const char *WLESS_UART_stateString(WLESS_SM_State state)
     {
         "STANDBY", "DISCOVERY", "INIT_SOURCE", "INIT_LOAD",
         "WAIT_SOURCE", "WAIT_LOAD", "PRECHARGE_SOURCE",
-        "PRECHARGE_LOAD", "SOURCE_ON", "LOAD_ON",
+        "PRECHARGE_LOAD", "HFC_BOOT_SOURCE", "WAIT_VBUS_LOAD",
+        "WAIT_RUN_LOAD", "SOURCE_ON", "LOAD_ON",
         "DISCHARGE_SOURCE", "DISCHARGE_LOAD", "SOURCE_OFF",
         "LOAD_OFF", "SOURCE_END", "LOAD_END", "ENDCHARGE_SOURCE",
         "ENDCHARGE_LOAD"

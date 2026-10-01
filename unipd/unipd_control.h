@@ -221,6 +221,21 @@ extern volatile unsigned int UNIPD_bbcCurrentPolarityMask;
 extern volatile float UNIPD_bbcILRawA_Amps;
 extern volatile float UNIPD_bbcILRawB_Amps;
 extern volatile unsigned int UNIPD_bbcPowerOutputEnable;
+/*
+ * Limite temporaneo sul riferimento di corrente batteria. La FSM lo usa solo
+ * per il primo precharge BOOST: agisce sul riferimento energetico UniPD prima
+ * della sintesi PWM, quindi non dipende dalla polarita' del bridge.
+ */
+extern volatile unsigned int UNIPD_bbcBootstrapCurrentLimitEnable;
+extern volatile float UNIPD_bbcBootstrapCurrentLimit_Amps;
+/* Limite superiore temporaneo del riferimento VDC BBC durante il precharge
+ * BOOST. La FSM lo fa partire dal VDC fisico e lo incrementa gradualmente. */
+extern volatile unsigned int UNIPD_bbcBootstrapVdcReferenceLimitEnable;
+extern volatile float UNIPD_bbcBootstrapVdcReferenceLimit_Volts;
+/* Clamp temporaneo sul duty effettivamente applicato. A differenza di UD,
+ * esiste solo durante il bootstrap gestito dalla FSM. */
+extern volatile unsigned int UNIPD_bbcBootstrapDutyLimitEnable;
+extern volatile float UNIPD_bbcBootstrapDutyLimit_pu;
 extern volatile float UNIPD_bbcPowerOutputDutyMax_pu;
 extern volatile unsigned int UNIPD_bbcDutyMappingMode;
 extern volatile float UNIPD_bbcMappedDutyA_pu;

@@ -227,7 +227,7 @@ static bool WLESS_NRF24_consumeOperationalPayload(const uint8_t *payload)
      * impossibile alteri parzialmente la state machine o il controllo UniPD.
      */
     if((role > (uint16_t)WLESS_SM_ROLE_LOAD) ||
-       (ctrlState > (uint16_t)WLESS_SM_CTRL_WPTERR) ||
+       (ctrlState > (uint16_t)WLESS_SM_CTRL_WPTREADY) ||
        (abortState > (uint16_t)WLESS_SM_ABORT_ENABLED))
     {
         WLESS_NRF24_recordInvalidPayload();

@@ -73,6 +73,12 @@ volatile unsigned int UNIPD_bbcCurrentPolarityMask;
 volatile float UNIPD_bbcILRawA_Amps;
 volatile float UNIPD_bbcILRawB_Amps;
 volatile unsigned int UNIPD_bbcPowerOutputEnable;
+volatile unsigned int UNIPD_bbcBootstrapCurrentLimitEnable;
+volatile float UNIPD_bbcBootstrapCurrentLimit_Amps;
+volatile unsigned int UNIPD_bbcBootstrapVdcReferenceLimitEnable;
+volatile float UNIPD_bbcBootstrapVdcReferenceLimit_Volts;
+volatile unsigned int UNIPD_bbcBootstrapDutyLimitEnable;
+volatile float UNIPD_bbcBootstrapDutyLimit_pu;
 volatile float UNIPD_bbcPowerOutputDutyMax_pu = 0.35f;
 volatile unsigned int UNIPD_bbcDutyMappingMode = 1U;
 volatile float UNIPD_bbcMappedDutyA_pu;
@@ -284,6 +290,7 @@ static void unipd_updateWptHfcActuator(unsigned int role)
         fault = 5U;
     }
     else if((WLESS_SM_state != WLESS_SM_STATE_PRECHARGE_SOURCE) &&
+            (WLESS_SM_state != WLESS_SM_STATE_HFC_BOOT_SOURCE) &&
             (WLESS_SM_state != WLESS_SM_STATE_SOURCE_ON))
     {
         fault = 6U;
@@ -1555,6 +1562,26 @@ void UNIPD_collectBbcIntegrationInputs(UNIPD_BbcIntegrationInputs *input)
     {
         unipd_applySyntheticBbcIntegrationInputs(input);
     }
+
+    /*
+     * Il bootstrap SOURCE deve caricare un DCLINK scarico senza chiedere
+     * immediatamente il limite UA completo. Il clamp e' applicato dopo gli
+     * override UART, cosi' vale anche con VBAT virtuale; non modifica UA e
+     * viene rimosso dalla FSM prima dell'avvio HFC/UniPD normale.
+     */
+    if(UNIPD_bbcBootstrapCurrentLimitEnable != 0U)
+    {
+        input->i_bat_rif_max = unipd_clampf(input->i_bat_rif_max,
+                                             0.0f,
+                                             UNIPD_bbcBootstrapCurrentLimit_Amps);
+    }
+
+    if(UNIPD_bbcBootstrapVdcReferenceLimitEnable != 0U)
+    {
+        input->v_dc_pbat_rif = unipd_clampf(input->v_dc_pbat_rif,
+                                             0.0f,
+                                             UNIPD_bbcBootstrapVdcReferenceLimit_Volts);
+    }
 }
 
 void UNIPD_runBbcDockingDiagnostics(void)
@@ -1680,9 +1707,23 @@ void OBC_7_4KW_runUnipdBbcControl(void)
        (UNIPD_bbcVdcTripLatched == 0U) &&
        (UNIPD_bbcILTripLatched == 0U))
     {
-        const float dutyMax = unipd_clampf(UNIPD_bbcPowerOutputDutyMax_pu,
-                                           0.0f,
-                                           0.95f);
+        float dutyMax = unipd_clampf(UNIPD_bbcPowerOutputDutyMax_pu,
+                                     0.0f,
+                                     0.95f);
+
+        /* Il bootstrap puo' limitare il comando effettivamente applicato senza
+         * alterare UD, che resta il limite permanente/configurato del BBC. */
+        if(UNIPD_bbcBootstrapDutyLimitEnable != 0U)
+        {
+            const float bootstrapDutyMax =
+                    unipd_clampf(UNIPD_bbcBootstrapDutyLimit_pu,
+                                 0.0f,
+                                 0.95f);
+            if(bootstrapDutyMax < dutyMax)
+            {
+                dutyMax = bootstrapDutyMax;
+            }
+        }
 #if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
         //
         // UniPD definisce delta come duty high-side per entrambe le direzioni
