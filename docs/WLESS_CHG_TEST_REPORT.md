@@ -5259,3 +5259,35 @@ plateau          = stabile
 Il run e' stato arrestato mediante `UE=0`.
 
 Esito: PASS. Il limite nominale `UD=950` e' ora utilizzabile.
+
+### Diagnostica BOOST isolato — limiti e feedback DCLINK, FW 1068
+
+Configurazione di prova: VIN fisica 20 V, carico elettronico CR 18 ohm sul
+DCLINK SOURCE, HFC disabilitato, riferimento BOOST `UR=24`, `UA=4000`,
+`UD=500`, `US=500`, `UY=40`, `UN=22`. Nel firmware diagnostico `UH=1` usa
+temporaneamente `UW=20000` per rendere il valore VBAT usato dal controllo
+coerente con la VIN fisica di 20 V.
+
+Fatti osservati:
+
+- con `UC=6000 mA`, il run e' stato interrotto dal trip di corrente di ramo:
+  ultimo capture `IL_A=6455 mA`, `IL_B=6923 mA`, `triggerReason=2`;
+- con `UC=10000 mA`, il BOOST ha raggiunto il regime senza trip;
+- nel regime stabile il capture ha mostrato `VDC=23.95...24.05 V`,
+  `IL_A/IL_B` circa `0.65...0.87 A` e nessun trigger;
+- il multimetro/carico sul DCLINK SOURCE ha indicato circa 19.6 V durante lo
+  stesso run;
+- il feedback principale `VBUS` (ADCB4/J26.20) e il canale indipendente
+  `VBUS2` (ADCC10/J26.25) hanno restituito raw rispettivamente circa 374--376
+  e 372--375, entrambi pari a circa 0.091 pu. Il controllo e il capture usano
+  `VBUS`, non `VBUS2`.
+
+Il test statico con alimentatore direttamente sul DCLINK ha dato, sul feedback
+principale, 10.04 V a 10 V iniettati, 15.00 V a 15 V e 20.05 V a 20 V. Non si
+modifica quindi la scala software del VDC. Per i test di controllo il valore
+di riferimento resta il feedback interno di circa 24 V; il valore esterno sul
+carico viene registrato separatamente come misura del nodo di potenza.
+
+La diagnostica VBUS/VBUS2 riduce temporaneamente il buffer BBC da 32 a 16
+campioni per rispettare il limite RAM. Va rimossa o riportata a 32 campioni al
+termine dell'indagine.

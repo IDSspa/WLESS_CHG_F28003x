@@ -63,6 +63,7 @@
  * inferiori ai trip hardware e proteggono il transitorio di pre-carica.
  */
 #define WLESS_SM_BOOT_HFC_PHASE_START_MPU       500U
+#define WLESS_SM_BOOT_HFC_PHASE_TARGET_MPU      500U
 #define WLESS_SM_BOOT_HFC_PHASE_STEP_MPU          1U
 /* 1 mpu ogni 100 ms: 500 -> 400 mpu richiede circa 10 s. */
 #define WLESS_SM_BOOT_HFC_PHASE_STEP_TICKS      100U
@@ -88,40 +89,13 @@
  */
 #define WLESS_SM_BOOT_SOURCE_VBUS_HOLD_HYST_MIN_V       2U
 #define WLESS_SM_BOOT_SOURCE_VBUS_HOLD_HYST_PERMILLE  100U
-/* Primo tratto del BOOST automatico: limita la richiesta UniPD a 6 W con
- * VBAT=12 V, prima che il DCLINK SOURCE superi SMBOOTSRC. */
-#define WLESS_SM_BOOT_BBC_PRECHARGE_CURRENT_A    (0.5f)     //TODO: da validare con il banco definitivo
-/* Limite iniziale di duty del solo bootstrap BOOST. 150 mpu e' il punto
- * validato sul banco 12 V -> 24 V; profili diversi lo impostano a runtime
- * tramite SMBOOTDUTY prima del run. Non sostituisce UD. */
+/* Limite iniziale del solo duty BOOST. Il valore e' configurabile a runtime
+ * tramite SMBOOTDUTY prima del run e non sostituisce UD. */
 #define WLESS_SM_BOOT_BBC_DUTY_MAX_MPU            150U
-/* BD e' il limite iniziale del governor PWM BOOST. Rimane inserito dopo
- * l'armamento e viene poi rilasciato in passi discreti, con VDC in tracking:
- * non e' lecito sostituirlo con UD in un unico istante. */
-#define WLESS_SM_BOOT_BBC_DUTY_ARM_CONFIRM_TICKS  500U
-/* Il servizio bootstrap segue il tick operativo a 1 kHz. Il riferimento BBC
- * avanza di 1 V ogni secondo, non ogni 100 ms: la rampa deve governare
- * l'energia immessa nel DCLINK e non limitarsi a frammentare un gradino UR. */
-#define WLESS_SM_BOOT_BBC_CONTROL_STEP_TICKS     1000U
-#define WLESS_SM_BOOT_BBC_CURRENT_STEP_A          (0.1f)
-/* Incremento del cap BD per ciascun passo di controllo (1 s). 25 mpu/s
- * richiede circa 32 s per il tratto 150 -> 950 del banco 12 V -> 24 V. */
-#define WLESS_SM_BOOT_BBC_DUTY_STEP_MPU            25U
-#define WLESS_SM_BOOT_BBC_CURRENT_RELEASE_A       (10.0f)
-
-/* Permanenza al riferimento BOOST effettivo prima dell'abilitazione HFC.
- * Unita': tick del servizio bootstrap a 1 kHz. */
-#define WLESS_SM_BOOT_BBC_TARGET_CONFIRM_TICKS    500U
 /* Il BOOST non viene mai armato a VIN assente. Sul banco il percorso passivo
  * porta VDC SOURCE a circa 11,5 V con VIN=12 V; 10 V e' quindi un consenso
  * fisico affidabile prima di rilasciare il PWM. */
 #define WLESS_SM_BOOT_BBC_ARM_VBUS_MIN_V         10U        //TODO: da validare con il banco definitivo
-/* Il riferimento VDC puo' avanzare soltanto quando la misura fisica lo segue
- * entro questa fascia. E' un margine di tracking, non una soglia VDC assoluta. */
-#define WLESS_SM_BOOT_BBC_VDC_TRACK_MARGIN_V      1U
-#define WLESS_SM_BOOT_BBC_VDC_REF_STEP_V          (1.0f)
-/* Oltre questo limite la guardia non puo' restringere nessun UR ammesso. */
-#define WLESS_SM_BOOT_BBC_VDC_REF_RELEASE_V       (60.0f)
 #define WLESS_SM_BOOT_LOAD_VBUS_MAX_V            30U        //TODO: da validare con il banco definitivo
 #define WLESS_SM_IBAT_MIN_MA            1U                  //TODO: da validare con il banco definitivo
 #define WLESS_SM_ICOIL_MIN_MA           1U                  //TODO: da validare con il banco definitivo

@@ -26,8 +26,12 @@
 #pragma RETAIN(WLESS_SM_remoteEnergyEncoded)
 #pragma RETAIN(WLESS_SM_vBus_V)
 #pragma RETAIN(WLESS_SM_bootSourceVBusMin_V)
+#pragma RETAIN(WLESS_SM_bootSourceVBusHoldMin_V)
 #pragma RETAIN(WLESS_SM_bootLoadVBusMin_V)
+#pragma RETAIN(WLESS_SM_bootBbcArmVBusMin_V)
 #pragma RETAIN(WLESS_SM_bootBbcDutyMax_mpu)
+#pragma RETAIN(WLESS_SM_bootBbcHfcDutyMax_mpu)
+#pragma RETAIN(WLESS_SM_bootHfcTargetPhase_mpu)
 #pragma RETAIN(WLESS_SM_iBat_mA)
 #pragma RETAIN(WLESS_SM_iCoil_mA)
 #pragma RETAIN(WLESS_SM_powerToLoad)
@@ -78,10 +82,17 @@ volatile uint16_t WLESS_SM_iCoil_mA;
 volatile uint16_t WLESS_SM_vBusMin_V = WLESS_SM_VBUS_MIN_V;
 volatile uint16_t WLESS_SM_bootSourceVBusMin_V =
         WLESS_SM_BOOT_SOURCE_VBUS_MIN_V;
+volatile uint16_t WLESS_SM_bootSourceVBusHoldMin_V;
 volatile uint16_t WLESS_SM_bootLoadVBusMin_V =
         WLESS_SM_BOOT_LOAD_VBUS_MIN_V;
+volatile uint16_t WLESS_SM_bootBbcArmVBusMin_V =
+        WLESS_SM_BOOT_BBC_ARM_VBUS_MIN_V;
 volatile uint16_t WLESS_SM_bootBbcDutyMax_mpu =
         WLESS_SM_BOOT_BBC_DUTY_MAX_MPU;
+volatile uint16_t WLESS_SM_bootBbcHfcDutyMax_mpu =
+        WLESS_SM_BOOT_BBC_DUTY_MAX_MPU;
+volatile uint16_t WLESS_SM_bootHfcTargetPhase_mpu =
+        WLESS_SM_BOOT_HFC_PHASE_TARGET_MPU;
 volatile uint16_t WLESS_SM_iBatMin_mA = WLESS_SM_IBAT_MIN_MA;
 volatile uint16_t WLESS_SM_iCoilMin_mA = WLESS_SM_ICOIL_MIN_MA;
 volatile int16_t WLESS_SM_powerToLoad;
@@ -141,15 +152,11 @@ static uint16_t WLESS_SM_bootHfcRampTicks;
 static float WLESS_SM_bootHfcTargetPhase_pu;
 static uint16_t WLESS_SM_bootHfcHandoffRampTicks;
 static float WLESS_SM_bootHfcConfiguredPhaseMax_pu;
-static uint16_t WLESS_SM_bootBbcControlTicks;
-static uint16_t WLESS_SM_bootBbcDutyArmTicks;
-static uint16_t WLESS_SM_bootBbcTargetReadyTicks;
 
 #if WLESS_SM_POWER_CONTROL_ENABLE == 1
 static bool WLESS_SM_confirmBootSourceVBusReady(void);
 static bool WLESS_SM_confirmBoostGovernorReady(void);
 static bool WLESS_SM_confirmSourceBootstrapReady(void);
-static bool WLESS_SM_boostGovernorAtTarget(void);
 
 // Isteresi di mantenimento VBUS per il bootstrap HFC
 static uint16_t WLESS_SM_getBootSourceVBusHoldHyst_V(void)
@@ -161,6 +168,30 @@ static uint16_t WLESS_SM_getBootSourceVBusHoldHyst_V(void)
     return (scaledHyst_V > WLESS_SM_BOOT_SOURCE_VBUS_HOLD_HYST_MIN_V) ?
             (uint16_t)scaledHyst_V :
             WLESS_SM_BOOT_SOURCE_VBUS_HOLD_HYST_MIN_V;
+}
+
+/*
+ * La soglia alta SMBOOTSRC abilita HFC; la soglia bassa puo' essere fissata
+ * dal profilo di banco per liberare il BOOST dopo il sag introdotto da HFC
+ * neutro. Il valore zero conserva la legge storica percentuale/minima.
+ */
+static uint16_t WLESS_SM_getBootSourceVBusHoldMin_V(void)
+{
+    const uint16_t configuredHold_V = WLESS_SM_bootSourceVBusHoldMin_V;
+
+    if((configuredHold_V != 0U) &&
+       (configuredHold_V < WLESS_SM_bootSourceVBusMin_V))
+    {
+        return configuredHold_V;
+    }
+
+    {
+        const uint16_t sourceHoldHyst_V =
+                WLESS_SM_getBootSourceVBusHoldHyst_V();
+
+        return (WLESS_SM_bootSourceVBusMin_V > sourceHoldHyst_V) ?
+                (WLESS_SM_bootSourceVBusMin_V - sourceHoldHyst_V) : 0U;
+    }
 }
 
 // Cattura lo stato della FSM al momento del bootstrap per la diagnostica
@@ -182,48 +213,14 @@ static bool WLESS_SM_isBootstrapState(WLESS_SM_State state)
            (state == WLESS_SM_STATE_WAIT_RUN_LOAD);
 }
 
-/*
- * Per il SOURCE alimentato dal BOOST, SMBOOTSRC esprime la soglia minima di
- * sicurezza, non il punto operativo. L'HFC puo' iniziare soltanto dopo che
- * il governor BBC ha raggiunto il riferimento VDC finale e il bus lo segue.
- * Il duty-cap resta invece intenzionalmente inserito fino a WPTREADY: prima
- * di quel consenso il LOAD non costituisce ancora un pozzo energetico certo.
- */
-static bool WLESS_SM_boostGovernorAtTarget(void)
-{
-    const float configuredVdcRef_V = UNIPD_bbcSyntheticInputs.v_dc_pbat_rif;
-    const float requiredVdc_V = configuredVdcRef_V -
-            (float)WLESS_SM_BOOT_BBC_VDC_TRACK_MARGIN_V;
-
-    if((configuredVdcRef_V <= 0.0f) ||
-       (WLESS_SM_vBus_V < (uint16_t)((requiredVdc_V > 0.0f) ?
-                                     requiredVdc_V : 0.0f)) ||
-       ((UNIPD_bbcBootstrapVdcReferenceLimitEnable != 0U) &&
-        ((UNIPD_bbcBootstrapVdcReferenceLimit_Volts + 0.001f) <
-         configuredVdcRef_V)))
-    {
-        return false;
-    }
-
-    return true;
-}
-
 static bool WLESS_SM_confirmBoostGovernorReady(void)
 {
-    if(!WLESS_SM_boostGovernorAtTarget())
-    {
-        WLESS_SM_bootBbcTargetReadyTicks = 0U;
-        return false;
-    }
-
-    if(WLESS_SM_bootBbcTargetReadyTicks <
-            WLESS_SM_BOOT_BBC_TARGET_CONFIRM_TICKS)
-    {
-        WLESS_SM_bootBbcTargetReadyTicks++;
-    }
-
-    return WLESS_SM_bootBbcTargetReadyTicks >=
-            WLESS_SM_BOOT_BBC_TARGET_CONFIRM_TICKS;
+    /*
+     * Il consenso HFC e' una soglia fisica di VDC SOURCE (SMBOOTSRC), non il
+     * raggiungimento del riferimento finale BBC. Il cap duty resta attivo
+     * fino al primo trasferimento HFC, quando esiste un carico reale.
+     */
+    return WLESS_SM_confirmBootSourceVBusReady();
 }
 
 static bool WLESS_SM_confirmSourceBootstrapReady(void)
@@ -241,7 +238,7 @@ static void WLESS_SM_serviceBootstrapFastGuards(void)
     if((WLESS_SM_state == WLESS_SM_STATE_PRECHARGE_SOURCE) &&
        (WLESS_SM_bootSourceMode == WLESS_SM_BOOT_SOURCE_BOOST) &&
        (UNIPD_bbcPowerOutputEnable == 0U) &&
-       (WLESS_SM_vBus_V > WLESS_SM_BOOT_BBC_ARM_VBUS_MIN_V))
+       (WLESS_SM_vBus_V > WLESS_SM_bootBbcArmVBusMin_V))
     {
         /*
          * Il VIN del SOURCE deve essere realmente presente prima di liberare
@@ -250,148 +247,23 @@ static void WLESS_SM_serviceBootstrapFastGuards(void)
          * del ponte potevano latching il trip di corrente prima del run.
          *
          * Il DCLINK viene osservato con l'acquisizione fisica, prima di ogni
-         * override UniPD; il percorso passivo del banco lo porta a ~11,5 V con
-         * VIN=12 V. Il limite energetico da 0,5 A e' gia' predisposto.
+         * override UniPD. La soglia SMBOOTARM e' un consenso di presenza VIN,
+         * non un riferimento di regolazione: deve restare sopra il rumore a
+         * VIN assente e sotto il VDC passivo del profilo di banco configurato.
+         * Il limite energetico iniziale e' gia' predisposto separatamente.
          */
         UNIPD_resetControlStatesCommand = 1U;
-        /* Il riferimento parte dalla tensione realmente gia' presente sul
-         * condensatore: evita il gradino VDC~11 V -> UR=24 V. */
-        UNIPD_bbcBootstrapVdcReferenceLimit_Volts =
-                (float)WLESS_SM_vBus_V;
-        UNIPD_bbcBootstrapVdcReferenceLimitEnable = 1U;
-        WLESS_SM_bootBbcControlTicks = 0U;
-        WLESS_SM_bootBbcDutyArmTicks = 0U;
-        WLESS_SM_bootBbcTargetReadyTicks = 0U;
-        UNIPD_bbcPowerOutputEnable = 1U;
-    }
-
-    if(((WLESS_SM_state == WLESS_SM_STATE_PRECHARGE_SOURCE) ||
-        (WLESS_SM_state == WLESS_SM_STATE_HFC_BOOT_SOURCE) ||
-        (WLESS_SM_state == WLESS_SM_STATE_SOURCE_ON)) &&
-       (WLESS_SM_bootSourceMode == WLESS_SM_BOOT_SOURCE_BOOST) &&
-        ((UNIPD_bbcBootstrapVdcReferenceLimitEnable != 0U) ||
-         (UNIPD_bbcBootstrapCurrentLimitEnable != 0U)))
-    {
         /*
-         * Il cap BD e' applicato dopo l'uscita UniPD. Non puo' essere
-         * sostituito con UD in un unico istante: il regolatore BBC puo' avere
-         * gia' accumulato richiesta e il salto reale di PWM causerebbe un
-         * overshoot VDC. La conferma iniziale abilita soltanto la rampa del
-         * cap; il rilascio effettivo e' eseguito piu' sotto, un passo/s.
+         * Il precharge BBC e' governato dal solo cap duty. Un cap VDC o
+         * corrente sovrapposto altera il regolatore UniPD e, a DCLINK aperto,
+         * puo' creare un rilascio temporizzato non correlato al carico HFC.
          */
-        if(UNIPD_bbcBootstrapDutyLimitEnable != 0U)
-        {
-            if((float)WLESS_SM_vBus_V >=
-                    (UNIPD_bbcBootstrapVdcReferenceLimit_Volts -
-                     (float)WLESS_SM_BOOT_BBC_VDC_TRACK_MARGIN_V))
-            {
-                if(WLESS_SM_bootBbcDutyArmTicks <
-                        WLESS_SM_BOOT_BBC_DUTY_ARM_CONFIRM_TICKS)
-                {
-                    WLESS_SM_bootBbcDutyArmTicks++;
-                }
-            }
-            else
-            {
-                WLESS_SM_bootBbcDutyArmTicks = 0U;
-            }
-
-            /* Finche' il bus non ha seguito il punto passivo iniziale, BD
-             * resta fermo e anche VDC/IA non possono avanzare. */
-            if(WLESS_SM_bootBbcDutyArmTicks <
-                    WLESS_SM_BOOT_BBC_DUTY_ARM_CONFIRM_TICKS)
-            {
-                return;
-            }
-        }
-
-        if(WLESS_SM_bootBbcControlTicks < WLESS_SM_BOOT_BBC_CONTROL_STEP_TICKS)
-        {
-            WLESS_SM_bootBbcControlTicks++;
-        }
-
-        if((WLESS_SM_bootBbcControlTicks >= WLESS_SM_BOOT_BBC_CONTROL_STEP_TICKS) &&
-           ((float)WLESS_SM_vBus_V >=
-            (UNIPD_bbcBootstrapVdcReferenceLimit_Volts -
-             (float)WLESS_SM_BOOT_BBC_VDC_TRACK_MARGIN_V)))
-        {
-            const bool vdcReferenceStepActive =
-                    (UNIPD_bbcBootstrapVdcReferenceLimitEnable != 0U);
-
-            /* Il riferimento e il limite di corrente avanzano insieme ogni
-             * secondo, ma solo se il condensatore SOURCE ha seguito il passo
-             * precedente. Se VDC si arresta, la richiesta UniPD resta al
-             * livello gia' raggiunto: non viene liberato un gradino UR/UA. */
-            WLESS_SM_bootBbcControlTicks = 0U;
-
-            if(vdcReferenceStepActive)
-            {
-                const float configuredVdcRef_V =
-                        UNIPD_bbcSyntheticInputs.v_dc_pbat_rif;
-
-                UNIPD_bbcBootstrapVdcReferenceLimit_Volts +=
-                        WLESS_SM_BOOT_BBC_VDC_REF_STEP_V;
-                if(UNIPD_bbcBootstrapVdcReferenceLimit_Volts >=
-                        configuredVdcRef_V)
-                {
-                    UNIPD_bbcBootstrapVdcReferenceLimit_Volts =
-                            configuredVdcRef_V;
-                    UNIPD_bbcBootstrapVdcReferenceLimitEnable = 0U;
-                }
-            }
-
-            /*
-             * Durante HFC_BOOT il LOAD non ha ancora dichiarato WPTREADY:
-             * il budget IA acquisito nel precharge resta quindi congelato.
-             * Rilasciarlo in questa fase avrebbe consentito UA completo pur
-             * senza una controparte energeticamente pronta. Dopo SOURCE_ON,
-             * invece, il rilascio riprende soltanto con VDC SOURCE in track.
-             */
-            if((UNIPD_bbcBootstrapCurrentLimitEnable != 0U) &&
-               (vdcReferenceStepActive ||
-                (WLESS_SM_state == WLESS_SM_STATE_SOURCE_ON)))
-            {
-                const float configuredCurrentLimit_A =
-                        UNIPD_bbcSyntheticInputs.i_bat_rif_max;
-
-                UNIPD_bbcBootstrapCurrentLimit_Amps +=
-                        WLESS_SM_BOOT_BBC_CURRENT_STEP_A;
-                if(UNIPD_bbcBootstrapCurrentLimit_Amps >=
-                        configuredCurrentLimit_A)
-                {
-                    UNIPD_bbcBootstrapCurrentLimit_Amps =
-                            configuredCurrentLimit_A;
-                    UNIPD_bbcBootstrapCurrentLimitEnable = 0U;
-                }
-            }
-
-            /* BD resta fisso durante PRECHARGE_SOURCE e HFC_BOOT_SOURCE:
-             * VDC SOURCE gia' carico non implica che il LOAD possa ancora
-             * assorbire energia. Il rilascio e' ammesso solo dopo WPTREADY,
-             * cioe' in SOURCE_ON, e rimane graduale per evitare il gradino
-             * verso UD che causerebbe il trip UY. */
-            if((UNIPD_bbcBootstrapDutyLimitEnable != 0U) &&
-               (WLESS_SM_state == WLESS_SM_STATE_SOURCE_ON))
-            {
-                const float configuredDutyLimit_pu =
-                        UNIPD_bbcPowerOutputDutyMax_pu;
-                const float dutyStep_pu =
-                        ((float)WLESS_SM_BOOT_BBC_DUTY_STEP_MPU) * 0.001f;
-
-                UNIPD_bbcBootstrapDutyLimit_pu += dutyStep_pu;
-                if(UNIPD_bbcBootstrapDutyLimit_pu >=
-                        configuredDutyLimit_pu)
-                {
-                    UNIPD_bbcBootstrapDutyLimit_pu =
-                            configuredDutyLimit_pu;
-                    UNIPD_bbcBootstrapDutyLimitEnable = 0U;
-                }
-            }
-        }
-    }
-    else
-    {
-        WLESS_SM_bootBbcControlTicks = 0U;
+        UNIPD_bbcBootstrapVdcReferenceLimitEnable = 0U;
+        UNIPD_bbcBootstrapCurrentLimitEnable = 0U;
+        UNIPD_bbcBootstrapDutyLimit_pu =
+                ((float)WLESS_SM_bootBbcDutyMax_mpu) * 0.001f;
+        UNIPD_bbcBootstrapDutyLimitEnable = 1U;
+        UNIPD_bbcPowerOutputEnable = 1U;
     }
 
     /* La parte specifica della rampa HFC resta confinata a HFC_BOOT. */
@@ -399,17 +271,26 @@ static void WLESS_SM_serviceBootstrapFastGuards(void)
        (WLESS_SM_state == WLESS_SM_STATE_HFC_BOOT_SOURCE) ||
        (WLESS_SM_state == WLESS_SM_STATE_SOURCE_ON))
     {
-        const bool sourceVbusReady = WLESS_SM_confirmBootSourceVBusReady();
-        const uint16_t sourceHoldHyst_V =
-                WLESS_SM_getBootSourceVBusHoldHyst_V();
         const uint16_t sourceHoldMin_V =
-                (WLESS_SM_bootSourceVBusMin_V >
-                 sourceHoldHyst_V) ?
-                (WLESS_SM_bootSourceVBusMin_V -
-                 sourceHoldHyst_V) : 0U;
+                WLESS_SM_getBootSourceVBusHoldMin_V();
 
         if(WLESS_SM_state == WLESS_SM_STATE_HFC_BOOT_SOURCE)
         {
+            /*
+             * WPTBOOT conferma che il bridge HFC neutro e' ormai parte del
+             * circuito. Da qui al WPTREADY del LOAD il BOOST non passa mai
+             * dall'esiguo cap di precharge al duty ordinario in un solo tick:
+             * usa invece il secondo ceiling configurabile SMBHD. Il controllo
+             * UniPD continua a calcolare normalmente il suo comando, ma il
+             * duty fisico resta limitato per contenere l'energia nel DCLINK.
+             */
+            if(WLESS_SM_remoteCtrlState == WLESS_SM_CTRL_WPTBOOT)
+            {
+                UNIPD_bbcBootstrapDutyLimit_pu =
+                        ((float)WLESS_SM_bootBbcHfcDutyMax_mpu) * 0.001f;
+                UNIPD_bbcBootstrapDutyLimitEnable = 1U;
+            }
+
             if(WLESS_SM_iCoil_mA >= WLESS_SM_BOOT_HFC_SOFT_COIL_LIMIT_MA)
             {
                 /* Arresto prima del trip HFC fisico; WPTOFF/Abort coordinano il peer. */
@@ -441,36 +322,44 @@ static void WLESS_SM_serviceBootstrapFastGuards(void)
                     }
                 }
             }
-            else if(WLESS_SM_vBus_V <= WLESS_SM_bootSourceVBusMin_V)
-            {
-                /* Sopra l'isteresi ma sotto il consenso: congelare la rampa e
-                 * richiedere nuovamente una permanenza stabile sopra SMBOOTSRC. */
-                WLESS_SM_bootSourceReadyTicks = 0U;
-                WLESS_SM_bootHfcRampTicks = 0U;
-            }
             /*
-             * Il primo WPTBOOT ricevuto dal LOAD e' il consenso che la controparte
-             * e' entrata nel proprio precharge. Prima di tale ACK il SOURCE resta
-             * neutro: non esiste ancora un destinatario che possa fermare una
-             * rampa HFC troppo energica.
+             * Il primo WPTBOOT ricevuto dal LOAD conferma che HFC neutro ha
+             * introdotto il carico iniziale. Sopra la soglia bassa il BOOST
+             * deve recuperare autorita' anche se VDC e' temporaneamente sotto
+             * SMBOOTSRC; la rampa HFC resta pero' ferma finche' non e' tornato
+             * sopra la soglia alta.
              */
             else if((WLESS_SM_remoteCtrlState == WLESS_SM_CTRL_WPTBOOT) &&
-                    sourceVbusReady &&
+                    (WLESS_SM_vBus_V > sourceHoldMin_V) &&
                     (UNIPD_wptHfcManualPhase_pu > WLESS_SM_bootHfcTargetPhase_pu))
             {
-                WLESS_SM_bootHfcRampTicks++;
-                if(WLESS_SM_bootHfcRampTicks >= WLESS_SM_BOOT_HFC_PHASE_STEP_TICKS)
+                if(WLESS_SM_vBus_V <= WLESS_SM_bootSourceVBusMin_V)
                 {
-                    const float phaseStep =
-                            ((float)WLESS_SM_BOOT_HFC_PHASE_STEP_MPU) * 0.001f;
-
+                    WLESS_SM_bootSourceReadyTicks = 0U;
                     WLESS_SM_bootHfcRampTicks = 0U;
-                    UNIPD_wptHfcManualPhase_pu -= phaseStep;
-                    if(UNIPD_wptHfcManualPhase_pu < WLESS_SM_bootHfcTargetPhase_pu)
+                }
+                else
+                {
+                    WLESS_SM_bootHfcRampTicks++;
+                    if(WLESS_SM_bootHfcRampTicks >= WLESS_SM_BOOT_HFC_PHASE_STEP_TICKS)
                     {
-                        UNIPD_wptHfcManualPhase_pu = WLESS_SM_bootHfcTargetPhase_pu;
+                        const float phaseStep =
+                                ((float)WLESS_SM_BOOT_HFC_PHASE_STEP_MPU) * 0.001f;
+
+                        WLESS_SM_bootHfcRampTicks = 0U;
+                        UNIPD_wptHfcManualPhase_pu -= phaseStep;
+                        if(UNIPD_wptHfcManualPhase_pu < WLESS_SM_bootHfcTargetPhase_pu)
+                        {
+                            UNIPD_wptHfcManualPhase_pu = WLESS_SM_bootHfcTargetPhase_pu;
+                        }
                     }
                 }
+            }
+            else if(WLESS_SM_vBus_V <= WLESS_SM_bootSourceVBusMin_V)
+            {
+                /* Sopra hold ma sotto consenso: HFC resta neutro e in attesa. */
+                WLESS_SM_bootSourceReadyTicks = 0U;
+                WLESS_SM_bootHfcRampTicks = 0U;
             }
         }
     }
@@ -529,11 +418,8 @@ static void WLESS_SM_serviceHfcHandoffLimit(void)
 {
     const float phaseStep =
             ((float)WLESS_SM_BOOT_HFC_HANDOFF_STEP_MPU) * 0.001f;
-    const uint16_t sourceHoldHyst_V =
-            WLESS_SM_getBootSourceVBusHoldHyst_V();
     const uint16_t sourceHoldMin_V =
-            (WLESS_SM_bootSourceVBusMin_V > sourceHoldHyst_V) ?
-            (WLESS_SM_bootSourceVBusMin_V - sourceHoldHyst_V) : 0U;
+            WLESS_SM_getBootSourceVBusHoldMin_V();
 
     if((WLESS_SM_state != WLESS_SM_STATE_SOURCE_ON) ||
        (WLESS_SM_bootSourceMode != WLESS_SM_BOOT_SOURCE_BOOST) ||
@@ -960,26 +846,14 @@ static void WLESS_SM_prepareUnipdBbcPath(bool enableBbc)
     UNIPD_disableWptHfcActuator();
     UNIPD_wptIntegrationEnable = 1U;
     UNIPD_resetControlStatesCommand = 1U;
-    WLESS_SM_bootBbcControlTicks = 0U;
-    WLESS_SM_bootBbcDutyArmTicks = 0U;
-    WLESS_SM_bootBbcTargetReadyTicks = 0U;
     /*
      * Nel bootstrap HFC+BUCK con PSU esterna il SOURCE non deve mai accendere
      * il BOOST. Il percorso UniPD/WPT resta invece attivo per HFC e radio.
      */
     if(enableBbc)
     {
-        /*
-         * Precharge BOOST a richiesta energetica limitata. Diversamente il
-         * controllore, vedendo VDC~0 e UR=24 V, richiede subito UA completo e
-         * puo' superare il trip dei due rami prima che la rampa duty abbia
-         * effetto misurabile. Il rilascio prosegue gradualmente anche dopo
-         * l'ingresso nel bootstrap HFC, con DCLINK gia' qualificato sopra
-         * SMBOOTSRC.
-         */
-        UNIPD_bbcBootstrapCurrentLimit_Amps =
-                WLESS_SM_BOOT_BBC_PRECHARGE_CURRENT_A;
-        UNIPD_bbcBootstrapCurrentLimitEnable = 1U;
+        /* Solo il cap duty condiziona il precharge BOOST. */
+        UNIPD_bbcBootstrapCurrentLimitEnable = 0U;
         UNIPD_bbcBootstrapVdcReferenceLimitEnable = 0U;
         UNIPD_bbcBootstrapDutyLimit_pu =
                 ((float)WLESS_SM_bootBbcDutyMax_mpu) * 0.001f;
@@ -1041,7 +915,14 @@ static void WLESS_SM_enableUnipdSourceHfc(bool bootstrap)
          * Partire a 500 mpu evita il gradino 500 -> target che ha portato il
          * tank oltre 5,5 A prima che il LOAD potesse pubblicare WPTREADY.
          */
-        WLESS_SM_bootHfcTargetPhase_pu = UNIPD_wptHfcManualPhase_pu;
+        /*
+         * Non ricavare il target dalla fase istantanea: questa funzione la
+         * porta deliberatamente a 500 mpu per il precharge. In precedenza il
+         * run successivo catturava quindi 500 mpu come nuovo target e l'HFC
+         * restava neutro. Il target configurato sopravvive al ciclo precedente.
+         */
+        WLESS_SM_bootHfcTargetPhase_pu =
+                ((float)WLESS_SM_bootHfcTargetPhase_mpu) * 0.001f;
         if(WLESS_SM_bootHfcTargetPhase_pu < 0.0f)
         {
             WLESS_SM_bootHfcTargetPhase_pu = 0.0f;
@@ -1109,8 +990,12 @@ static void WLESS_SM_setPowerCommand(WLESS_SM_PowerCommand command)
          * fase UniPD al punto fisico corrente: un reset in questo punto
          * reintrodurrebbe un gradino nel comando e annullerebbe l'hand-off.
          */
-        /* Il cap bootstrap resta attivo oltre WPTON e viene rilasciato dalla
-         * guardia a passi discreti; UD resta il limite ordinario immutato. */
+        /*
+         * WPTREADY certifica che il LOAD ha VDC sufficiente e BUCK armato.
+         * Fuori da HFC_BOOT il cap intermedio non deve persistere: UniPD
+         * riprende definitivamente la piena autorita' sul duty BBC.
+         */
+        UNIPD_bbcBootstrapDutyLimitEnable = 0U;
         WLESS_SM_enableUnipdSourceHfc(false);
     }
     else if(command == WLESS_SM_POWER_CMD_LOAD_PRECHARGE)
@@ -1178,8 +1063,12 @@ void WLESS_SM_init(void)
     WLESS_SM_iBat_mA = 0U;
     WLESS_SM_iCoil_mA = 0U;
     WLESS_SM_bootSourceVBusMin_V = WLESS_SM_BOOT_SOURCE_VBUS_MIN_V;
+    WLESS_SM_bootSourceVBusHoldMin_V = 0U;
     WLESS_SM_bootLoadVBusMin_V = WLESS_SM_BOOT_LOAD_VBUS_MIN_V;
+    WLESS_SM_bootBbcArmVBusMin_V = WLESS_SM_BOOT_BBC_ARM_VBUS_MIN_V;
     WLESS_SM_bootBbcDutyMax_mpu = WLESS_SM_BOOT_BBC_DUTY_MAX_MPU;
+    WLESS_SM_bootBbcHfcDutyMax_mpu = WLESS_SM_BOOT_BBC_DUTY_MAX_MPU;
+    WLESS_SM_bootHfcTargetPhase_mpu = WLESS_SM_BOOT_HFC_PHASE_TARGET_MPU;
     WLESS_SM_bootstrapStepPending = 0U;
     WLESS_SM_bootHfcSoftCurrentTrip = 0U;
     WLESS_SM_bootLoadOverVoltage = 0U;
@@ -1187,7 +1076,9 @@ void WLESS_SM_init(void)
     WLESS_SM_bootHfcRampTicks = 0U;
     WLESS_SM_bootHfcTargetPhase_pu = 0.5f;
     WLESS_SM_bootHfcHandoffRampTicks = 0U;
+#if WLESS_SM_POWER_CONTROL_ENABLE == 1
     WLESS_SM_bootHfcConfiguredPhaseMax_pu = UNIPD_wptHfcPhaseMax_pu;
+#endif
     WLESS_SM_bootHfcHandoffActive = 0U;
     WLESS_SM_bootHfcHandoffPhase_mpu = 0U;
     WLESS_SM_bootHfcHandoffLimit_mpu = 0U;
@@ -1582,6 +1473,7 @@ static void WLESS_SM_runVehicleStep(void)
             }
             break;
 
+#if WLESS_SM_POWER_CONTROL_ENABLE == 1
         case WLESS_SM_STATE_HFC_BOOT_SOURCE:
             if(WLESS_SM_radioLinkKo())
             {
@@ -1663,6 +1555,7 @@ static void WLESS_SM_runVehicleStep(void)
                 WLESS_SM_localAbort = WLESS_SM_ABORT_ENABLED;
             }
             break;
+#endif
 
         case WLESS_SM_STATE_PRECHARGE_LOAD:
             if(WLESS_SM_radioLinkKo() ||
@@ -1971,6 +1864,7 @@ static void WLESS_SM_runStationStep(void)
             }
             break;
 
+#if WLESS_SM_POWER_CONTROL_ENABLE == 1
         case WLESS_SM_STATE_HFC_BOOT_SOURCE:
             if(WLESS_SM_radioLinkKo() ||
                 (WLESS_SM_remoteAbort == WLESS_SM_ABORT_ENABLED) ||
@@ -2027,6 +1921,7 @@ static void WLESS_SM_runStationStep(void)
                 WLESS_SM_state = WLESS_SM_STATE_LOAD_ON;
             }
             break;
+#endif
 
         case WLESS_SM_STATE_PRECHARGE_LOAD:
             if(WLESS_SM_radioLinkKo() ||

@@ -128,8 +128,16 @@ extern volatile uint16_t WLESS_SM_iBat_mA;
 extern volatile uint16_t WLESS_SM_iCoil_mA;
 extern volatile uint16_t WLESS_SM_vBusMin_V;
 extern volatile uint16_t WLESS_SM_bootSourceVBusMin_V;
+/* 0: isteresi SOURCE derivata dal profilo; >0: soglia hold SOURCE esplicita. */
+extern volatile uint16_t WLESS_SM_bootSourceVBusHoldMin_V;
 extern volatile uint16_t WLESS_SM_bootLoadVBusMin_V;
+/* VDC fisico minimo che attesta VIN presente prima dell'armamento PWM BBC. */
+extern volatile uint16_t WLESS_SM_bootBbcArmVBusMin_V;
 extern volatile uint16_t WLESS_SM_bootBbcDutyMax_mpu;
+/* Cap duty del BOOST quando HFC e' armato ma il LOAD non e' ancora WPTREADY. */
+extern volatile uint16_t WLESS_SM_bootBbcHfcDutyMax_mpu;
+/* Target HFC configurato: distinto dalla fase istantanea del bootstrap. */
+extern volatile uint16_t WLESS_SM_bootHfcTargetPhase_mpu;
 extern volatile uint16_t WLESS_SM_iBatMin_mA;
 extern volatile uint16_t WLESS_SM_iCoilMin_mA;
 extern volatile int16_t WLESS_SM_powerToLoad;

@@ -280,14 +280,14 @@ Il software host deve identificare la risposta mediante l'intero campo
 |---|---:|---|
 | `UH=1` | - | selezione BOOST con ingressi fisici necessari e segnali non disponibili sintetici |
 | `UH=2` | - | selezione BUCK; non usare nelle procedure BOOST |
-| `UV=<mV>` | mV | riferimento DCLINK con risoluzione millivolt |
-| `UR=<V>` | V | riferimento DCLINK intero, alternativa a `UV` |
-| `UA=<mA>` | mA | limite corrente batteria UniPD |
+| `UV=<mV>` | mV | riferimento DCLINK con risoluzione millivolt, campo 1...500 V |
+| `UR=<V>` | V | riferimento DCLINK intero, alternativa a `UV`, campo 1...500 V |
+| `UA=<mA>` | mA | limite corrente batteria UniPD, campo 0...30000 mA; la scelta operativa resta un contratto BMS |
 | `UD=<mpu>` | 0,001 pu | limite massimo duty, massimo accettato 950 |
 | `US=<micro-pu>` | 0,000001 pu/ciclo | passo della rampa duty, campo 1...2000 |
-| `UX=<mV>` | mV | soglia trip DCLINK, campo 2...60 V |
-| `UY=<V>` | V | soglia trip DCLINK, campo 2...300 V |
-| `UC=<mA>` | mA | soglia trip corrente di ramo, campo 100...10000 mA |
+| `UX=<mV>` | mV | soglia trip DCLINK, campo 2...500 V |
+| `UY=<V>` | V | soglia trip DCLINK, campo 2...500 V |
+| `UC=<mA>` | mA | soglia trip corrente di ramo, campo 100...30000 mA (coerente con la protezione BBC TTPLPFC) |
 | `UN=<cicli>` | cicli | conferma trip corrente, campo 1...1000 |
 | `UF=1` | - | reset latch, solo dopo rimozione della causa |
 | `UF=2` | - | calibrazione offset correnti rami e reset latch |
@@ -319,14 +319,14 @@ docking test disabilitati. Impostare tutti i parametri prima di `UE=1`.
 | `WPTHFCLIM=<1...500>` | limite phase shift automatico |
 | `WPTHFCRAMP=<0...100>` | passo rampa HFC in micro-pu/ciclo; 0 disabilita la rampa |
 | `WPTCLAMP=<0|1>` | 0 conserva il riferimento UniPD firmato; 1 abilita il clamp legacy a zero |
-| `WPTISRC=<mA>` | corrente coil SOURCE sintetica |
+| `WPTISRC=<mA>` | corrente coil SOURCE sintetica, campo 0...40000 mA |
 | `WPTISRC=OFF` | ripristina la corrente SOURCE fisica; usare solo se validata |
-| `WPTILOAD=<mA>` | corrente coil LOAD sintetica |
+| `WPTILOAD=<mA>` | corrente coil LOAD sintetica, campo 0...40000 mA |
 | `WPTILOAD=OFF` | usa corrente LOAD fisica |
-| `WPTPLIMINIT=<W>` | seed limite potenza SOURCE |
-| `WPTPLOADINIT=<W>` | seed potenza LOAD |
-| `WPTIZERO=<mA>` | offset corrente coil LOAD |
-| `WPTIMAX=<mA>` | limite massimo corrente WPT |
+| `WPTPLIMINIT=<W>` | seed limite potenza SOURCE, campo 0...32767 W; al consumo e' limitato dal controllo UniPD |
+| `WPTPLOADINIT=<W>` | seed potenza LOAD, campo 0...32767 W; al consumo e' limitato dal limite remoto ricevuto |
+| `WPTIZERO=<mA>` | offset corrente coil LOAD, campo 0...40000 mA; aggiorna anche la configurazione pending. Per renderlo persistente: a potenza disabilitata, `CA`, poi `CS`. Il record flash accetta offset 0...5000 mA. |
+| `WPTIMAX=<mA>` | limite massimo corrente WPT, campo 0...40000 mA |
 
 `WPTHFC=1` viene inibito se:
 
@@ -1204,6 +1204,8 @@ CAPD,1,<indice>,<campi numerici>
 ```text
 WPTCAPDEC=<decimazione>
 WPTCAP=1
+WPTCAP=2
+WPTCAP=3
 WPTCAP=0
 WPTCAP?
 WPTCAPD?
@@ -1211,6 +1213,16 @@ WPTCAPD?
 
 Il buffer contiene 96 campioni. `WPTCAPD?` deve essere eseguito soltanto dopo
 `WPTCAP=0`.
+
+`WPTCAP=2` arma il trigger di dropout gia' documentato. Dal firmware 1071,
+`WPTCAP=3` arma sul
+SOURCE il trigger first-fault HFC: al primo `HFLT!=0` memorizza e congela nello
+stesso tick lo snapshot della corrente fisica di trip, VDC e fase
+richiesta/applicata/fisica. Il ring buffer conserva il contesto immediatamente
+precedente. In `WPTCAP?`, `HFLTTRIG=1` indica questo armamento e `REASON=4` il
+congelamento per HFLT; `FSNAP=1` e i campi `F*` riportano lo snapshot. Dopo il
+dump ordinario, `WPTCAPD?` emette anche una riga `WPTCAPF,1,...` con gli stessi
+valori. Nessun comando UART e' necessario durante il trasferimento.
 
 Le risposte usano i prefissi versionati `WPTCAP,1`,
 `WPTCAPD_COLUMNS,1` e `WPTCAPD,1`.

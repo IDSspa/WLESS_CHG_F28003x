@@ -14,7 +14,7 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1104;
+const int FIRMWARE_RELEASE = 1119;
 
 /*
  * UART power-command envelope.  These values mirror the native UniPD / BBC
@@ -794,10 +794,16 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         WLESS_UART_sendInt((int32_t)WLESS_SM_bootSourceMode);
         WLESS_UART_sendString(",S=");
         WLESS_UART_sendInt((int32_t)WLESS_SM_bootSourceVBusMin_V);
+        WLESS_UART_sendString("/");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootSourceVBusHoldMin_V);
         WLESS_UART_sendString(",L=");
         WLESS_UART_sendInt((int32_t)WLESS_SM_bootLoadVBusMin_V);
+        WLESS_UART_sendString(",A=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootBbcArmVBusMin_V);
         WLESS_UART_sendString(",BD=");
         WLESS_UART_sendInt((int32_t)WLESS_SM_bootBbcDutyMax_mpu);
+        WLESS_UART_sendString(",BH=");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootBbcHfcDutyMax_mpu);
         WLESS_UART_sendString(",TS=");
         WLESS_UART_sendInt((int32_t)WLESS_SM_bootTraceState);
         WLESS_UART_sendString(",TN=");
@@ -842,8 +848,31 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
             WLESS_UART_sendString("SMBOOTSRC RANGE\r\n");
             return 1U;
         }
+        if((WLESS_SM_bootSourceVBusHoldMin_V != 0U) &&
+           (wptValue <= WLESS_SM_bootSourceVBusHoldMin_V))
+        {
+            WLESS_UART_sendString("SMBOOTSRC RANGE\r\n");
+            WLESS_UART_commandErrorCount++;
+            return 1U;
+        }
         WLESS_SM_bootSourceVBusMin_V = (uint16_t)wptValue;
         WLESS_UART_sendString("SMBOOTSRC OK\r\n");
+        return 0U;
+    }
+    /* Il buffer UART accetta al massimo 15 caratteri: usare l'alias SMBH. */
+    if(WLESS_UART_parseExactUnsigned(command, "SMBH=", &wptValue) != 0U)
+    {
+        WLESS_UART_commandCount++;
+        if((wptValue > 65535UL) ||
+           ((wptValue != 0UL) &&
+            (wptValue >= WLESS_SM_bootSourceVBusMin_V)))
+        {
+            WLESS_UART_sendString("SMBH R\r\n");
+            WLESS_UART_commandErrorCount++;
+            return 1U;
+        }
+        WLESS_SM_bootSourceVBusHoldMin_V = (uint16_t)wptValue;
+        WLESS_UART_sendString("SMBH O\r\n");
         return 0U;
     }
 
@@ -860,6 +889,21 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         return 0U;
     }
 
+    if(WLESS_UART_parseExactUnsigned(command, "SMBA=", &wptValue) != 0U)
+    {
+        WLESS_UART_commandCount++;
+        /* Zero armerebbe il PWM anche a VIN assente: il valore e' un consenso,
+         * non una soglia di regolazione e deve rimanere strettamente positivo. */
+        if((wptValue == 0UL) || (wptValue > 65535UL))
+        {
+            WLESS_UART_sendString("SMBA RANGE\r\n");
+            return 1U;
+        }
+        WLESS_SM_bootBbcArmVBusMin_V = (uint16_t)wptValue;
+        WLESS_UART_sendString("SMBA OK\r\n");
+        return 0U;
+    }
+
     if(WLESS_UART_parseExactUnsigned(command, "SMBOOTDUTY=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
@@ -870,6 +914,21 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         }
         /* Configurazione pre-run: il clamp viene campionato al PRECHARGE. */
         WLESS_SM_bootBbcDutyMax_mpu = (uint16_t)wptValue;
+        WLESS_UART_sendString("SMBD OK\r\n");
+        return 0U;
+    }
+
+    /* Alias corto: il parser UART dispone soltanto di 15 caratteri. */
+    if(WLESS_UART_parseExactUnsigned(command, "SMBHD=", &wptValue) != 0U)
+    {
+        WLESS_UART_commandCount++;
+        if(wptValue > 950UL)
+        {
+            WLESS_UART_sendString("SMBD RANGE\r\n");
+            return 1U;
+        }
+        /* Configurazione pre-run: diventa attiva soltanto dopo WPTBOOT remoto. */
+        WLESS_SM_bootBbcHfcDutyMax_mpu = (uint16_t)wptValue;
         WLESS_UART_sendString("SMBD OK\r\n");
         return 0U;
     }
@@ -986,6 +1045,8 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
             return 0U;
         }
         UNIPD_wptHfcManualPhase_pu = (float)wptValue * 0.001f;
+        /* Configura anche il target persistente del prossimo bootstrap. */
+        WLESS_SM_bootHfcTargetPhase_mpu = (uint16_t)wptValue;
         UNIPD_wptHfcManualPhaseEnable = 1U;
         WLESS_UART_sendWptIntegration();
         return 0U;
@@ -1734,11 +1795,12 @@ static void WLESS_UART_sendBbcCaptureDump(void)
 
     if(UNIPD_bbcCaptureArmed != 0U)
     {
-        WLESS_UART_sendString("CAPD,1,BUSY\r\n");
+        WLESS_UART_sendString("CD B\r\n");
         return;
     }
 
-    WLESS_UART_sendString("CAPD_COLUMNS,3,n,vdc_mV,vbus_raw_1,vbus_raw_2,vbus_pu,vbus_uncorrected_mV,vbus2_raw,vbus2_pu,vbat_mV,ila_mA,ilb_mA,ilrefA_mA,ilrefB_mA,ilerrA_mA,ilerrB_mA,vlrefA_mV,vlrefB_mV,pbat_mW,rawA_u,rawB_u,intA_u,intB_u,mapA_u,mapB_u,appA_u,appB_u,rampA_u,rampB_u\r\n");
+    /* Ordine campi CAPD stabile e documentato; non replicarlo in flash. */
+    WLESS_UART_sendString("CAPD,3\r\n");
     for(index = 0U; index < UNIPD_bbcCaptureCount; index++)
     {
         if(UNIPD_getBbcCaptureSample(index, &sample) == 0U)
