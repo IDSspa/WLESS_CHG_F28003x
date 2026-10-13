@@ -14,7 +14,7 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1119;
+const int FIRMWARE_RELEASE = 1130;
 
 /*
  * UART power-command envelope.  These values mirror the native UniPD / BBC
@@ -804,6 +804,8 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         WLESS_UART_sendInt((int32_t)WLESS_SM_bootBbcDutyMax_mpu);
         WLESS_UART_sendString(",BH=");
         WLESS_UART_sendInt((int32_t)WLESS_SM_bootBbcHfcDutyMax_mpu);
+        WLESS_UART_sendString("/");
+        WLESS_UART_sendInt((int32_t)WLESS_SM_bootBbcHfcHandoffDutyMax_mpu);
         WLESS_UART_sendString(",TS=");
         WLESS_UART_sendInt((int32_t)WLESS_SM_bootTraceState);
         WLESS_UART_sendString(",TN=");
@@ -931,6 +933,27 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
         WLESS_SM_bootBbcHfcDutyMax_mpu = (uint16_t)wptValue;
         WLESS_UART_sendString("SMBD OK\r\n");
         return 0U;
+    }
+
+    /* SMBHH= usa un confronto carattere-per-carattere per non aggiungere una
+     * nuova stringa di comando alla pagina .uartStrings, limitata a 4 KiB. */
+    if((command[0] == 'S') && (command[1] == 'M') &&
+       (command[2] == 'B') && (command[3] == 'H') &&
+       (command[4] == 'H') && (command[5] == '='))
+    {
+        if(WLESS_UART_parseExactUnsigned(&command[6], "", &wptValue) != 0U)
+        {
+            WLESS_UART_commandCount++;
+            if(wptValue > 950UL)
+            {
+                WLESS_UART_sendString("SMBD RANGE\r\n");
+                return 1U;
+            }
+            /* Cap finale dell'hand-off: viene raggiunto solo con HFC aperto. */
+            WLESS_SM_bootBbcHfcHandoffDutyMax_mpu = (uint16_t)wptValue;
+            WLESS_UART_sendString("SMBD OK\r\n");
+            return 0U;
+        }
     }
 
     if(WLESS_UART_parseExactUnsigned(command, "SMVBUS=", &wptValue) != 0U)
@@ -1120,6 +1143,9 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
             return 1U;
         }
         UNIPD_wptHfcPhaseMax_pu = (float)wptValue * 0.001f;
+        /* Conserva il limite richiesto separatamente dal cap operativo che
+         * il bootstrap riduce temporaneamente durante l'hand-off. */
+        WLESS_SM_bootHfcPhaseLimit_mpu = (uint16_t)wptValue;
         WLESS_UART_sendWptIntegration();
         return 0U;
     }
@@ -1990,6 +2016,8 @@ static const char *WLESS_UART_ctrlString(WLESS_SM_ControllerState state)
         case WLESS_SM_CTRL_WPTOFF: return "WPTOFF";
         case WLESS_SM_CTRL_WPTEND: return "WPTEND";
         case WLESS_SM_CTRL_WPTERR: return "WPTERR";
+        case WLESS_SM_CTRL_WPTBOOT: return "WPTBOOT";
+        case WLESS_SM_CTRL_WPTLOADREADY: return "WPTLOADREADY";
         default: return "UNDEFINED";
     }
 }
@@ -2000,7 +2028,7 @@ static const char *WLESS_UART_stateString(WLESS_SM_State state)
     {
         "STANDBY", "DISCOVERY", "INIT_SOURCE", "INIT_LOAD",
         "WAIT_SOURCE", "WAIT_LOAD", "PRECHARGE_SOURCE",
-        "PRECHARGE_LOAD", "HFC_BOOT_SOURCE", "WAIT_VBUS_LOAD",
+        "PRECHARGE_LOAD", "HFC_BOOT_SOURCE", "HFC_HANDOFF_SOURCE", "WAIT_VBUS_LOAD",
         "WAIT_RUN_LOAD", "SOURCE_ON", "LOAD_ON",
         "DISCHARGE_SOURCE", "DISCHARGE_LOAD", "SOURCE_OFF",
         "LOAD_OFF", "SOURCE_END", "LOAD_END", "ENDCHARGE_SOURCE",

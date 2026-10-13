@@ -23,6 +23,8 @@ typedef enum
     WLESS_SM_STATE_PRECHARGE_SOURCE,
     WLESS_SM_STATE_PRECHARGE_LOAD,
     WLESS_SM_STATE_HFC_BOOT_SOURCE,
+    /* HFC e BOOST sono in hand-off UniPD; il LOAD ha gia' il BUCK attivo. */
+    WLESS_SM_STATE_HFC_HANDOFF_SOURCE,
     WLESS_SM_STATE_WAIT_VBUS_LOAD,
     WLESS_SM_STATE_WAIT_RUN_LOAD,
     WLESS_SM_STATE_SOURCE_ON,
@@ -55,8 +57,8 @@ typedef enum
     WLESS_SM_CTRL_WPTERR = 0x06,
     /* Bootstrap distribuito: non equivale alla regolazione UniPD normale. */
     WLESS_SM_CTRL_WPTBOOT = 0x07,
-    /* Il LOAD ha VDC valido e BUCK armato; il SOURCE puo' fare handover. */
-    WLESS_SM_CTRL_WPTREADY = 0x08
+    /* Il LOAD ha VDC valido e avvia il BUCK; WPTON completa l'hand-off remoto. */
+    WLESS_SM_CTRL_WPTLOADREADY = 0x08
 } WLESS_SM_ControllerState;
 
 typedef enum
@@ -134,10 +136,14 @@ extern volatile uint16_t WLESS_SM_bootLoadVBusMin_V;
 /* VDC fisico minimo che attesta VIN presente prima dell'armamento PWM BBC. */
 extern volatile uint16_t WLESS_SM_bootBbcArmVBusMin_V;
 extern volatile uint16_t WLESS_SM_bootBbcDutyMax_mpu;
-/* Cap duty del BOOST quando HFC e' armato ma il LOAD non e' ancora WPTREADY. */
+/* Cap duty del BOOST quando HFC e' armato ma il LOAD non e' ancora pronto. */
 extern volatile uint16_t WLESS_SM_bootBbcHfcDutyMax_mpu;
+/* Cap finale BOOST durante l'hand-off HFC, prima del rilascio di UD. */
+extern volatile uint16_t WLESS_SM_bootBbcHfcHandoffDutyMax_mpu;
 /* Target HFC configurato: distinto dalla fase istantanea del bootstrap. */
 extern volatile uint16_t WLESS_SM_bootHfcTargetPhase_mpu;
+/* Limite UniPD configurato: distinto dal ceiling operativo dell'hand-off. */
+extern volatile uint16_t WLESS_SM_bootHfcPhaseLimit_mpu;
 extern volatile uint16_t WLESS_SM_iBatMin_mA;
 extern volatile uint16_t WLESS_SM_iCoilMin_mA;
 extern volatile int16_t WLESS_SM_powerToLoad;

@@ -161,6 +161,7 @@ static UNIPD_WptCaptureSample
 static float unipd_clampf(float value, float min_value, float max_value);
 static void unipd_captureWptCycle(void);
 static void unipd_latchWptHfcFaultSnapshot(void);
+static void unipd_trackBoostCoilVoltageFromAppliedDuty(void);
 
 volatile unsigned int UNIPD_wptIntegrationEnable;
 volatile float UNIPD_wptVdcSourceRef_Volts = 12.0f;
@@ -290,8 +291,11 @@ static void unipd_updateWptHfcActuator(unsigned int role)
         fault = 5U;
     }
     else if((WLESS_SM_state != WLESS_SM_STATE_PRECHARGE_SOURCE) &&
-            (WLESS_SM_state != WLESS_SM_STATE_HFC_BOOT_SOURCE) &&
-            (WLESS_SM_state != WLESS_SM_STATE_SOURCE_ON))
+             (WLESS_SM_state != WLESS_SM_STATE_HFC_BOOT_SOURCE) &&
+             /* HFC resta fisicamente attivo durante il passaggio bumpless
+              * dalla fase manuale al controllo UniPD. */
+             (WLESS_SM_state != WLESS_SM_STATE_HFC_HANDOFF_SOURCE) &&
+             (WLESS_SM_state != WLESS_SM_STATE_SOURCE_ON))
     {
         fault = 6U;
     }
@@ -1809,6 +1813,21 @@ void OBC_7_4KW_runUnipdBbcControl(void)
             }
 #endif
 
+            /*
+             * BOOST asynchronous maps the UniPD delta to low-side duty as
+             * Dlow = 1 - delta.  A bootstrap cap is deliberately imposed
+             * after the UniPD coil-current calculation; without tracking,
+             * the next cycle retains V_L references corresponding to the
+             * unclamped delta, although the bridge has applied Dlow_ramped.
+             *
+             * Feed the physical command back only while the temporary
+             * bootstrap cap is active and only in BOOST.  This preserves the
+             * ordinary UniPD/Buck path while making the current-loop state
+             * bumpless with respect to the voltage actually imposed across
+             * each BBC inductor.
+             */
+            unipd_trackBoostCoilVoltageFromAppliedDuty();
+
             const TTPLPFC_BBC_Mode requestedMode =
                     (UNIPD_bbcInputs.tx_1_rx_0 != 0U) ?
                     TTPLPFC_BBC_MODE_BOOST : TTPLPFC_BBC_MODE_BUCK;
@@ -1858,6 +1877,53 @@ void OBC_7_4KW_runUnipdBbcControl(void)
         TTPLPFC_BBC_setMode(TTPLPFC_BBC_MODE_DISABLED);
         TTPLPFC_BBC_disable();
     }
+}
+
+static void unipd_trackBoostCoilVoltageFromAppliedDuty(void)
+{
+    float vBat;
+    float vDc;
+    float vLMin;
+    float vLEffectiveA;
+    float vLEffectiveB;
+
+    if((UNIPD_bbcBootstrapDutyLimitEnable == 0U) ||
+       (UNIPD_bbcDutyMappingMode == 0U) ||
+       (UNIPD_bbcInputs.tx_1_rx_0 == 0U))
+    {
+        return;
+    }
+
+    /*
+     * This helper is called after cap and ramp.  If neither leg was altered,
+     * leave the state produced by the standard UniPD recurrence untouched.
+     */
+    if((UNIPD_bbcRampedDutyA_pu >=
+            (UNIPD_bbcMappedDutyA_pu - 0.000001f)) &&
+       (UNIPD_bbcRampedDutyB_pu >=
+            (UNIPD_bbcMappedDutyB_pu - 0.000001f)))
+    {
+        return;
+    }
+
+    vBat = unipd_clampf(UNIPD_bbcInputs.v_bat,
+                         UNIPD_vBatMinAlg_Volts,
+                         UNIPD_vBatMaxAlg_Volts);
+    vDc = unipd_clampf(UNIPD_bbcInputs.v_dc,
+                        UNIPD_vDcMinAlg_Volts,
+                        UNIPD_vDcMaxAlg_Volts);
+    vLMin = vBat - vDc;
+
+    /* For BOOST, delta = 1 - Dlow and V_L = VBAT - delta * VDC. */
+    vLEffectiveA = vBat - ((1.0f - UNIPD_bbcRampedDutyA_pu) * vDc);
+    vLEffectiveB = vBat - ((1.0f - UNIPD_bbcRampedDutyB_pu) * vDc);
+    vLEffectiveA = unipd_clampf(vLEffectiveA, vLMin, vBat);
+    vLEffectiveB = unipd_clampf(vLEffectiveB, vLMin, vBat);
+
+    unipd_dc_bus_coil_state.v_l_rif_a_p = vLEffectiveA;
+    unipd_dc_bus_coil_state.v_l_rif_b_p = vLEffectiveB;
+    UNIPD_bbcDebugVLrifA = vLEffectiveA;
+    UNIPD_bbcDebugVLrifB = vLEffectiveB;
 }
 
 void OBC_7_4KW_runUnipdControlHooks(void)

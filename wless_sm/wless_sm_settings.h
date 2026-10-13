@@ -64,16 +64,16 @@
  */
 #define WLESS_SM_BOOT_HFC_PHASE_START_MPU       500U
 #define WLESS_SM_BOOT_HFC_PHASE_TARGET_MPU      500U
-#define WLESS_SM_BOOT_HFC_PHASE_STEP_MPU          1U
-/* 1 mpu ogni 100 ms: 500 -> 400 mpu richiede circa 10 s. */
+#define WLESS_SM_BOOT_HFC_PHASE_STEP_MPU          5U
+/* 5 mpu ogni 100 ms: 500 -> 200 mpu richiede circa 6 s. */
 #define WLESS_SM_BOOT_HFC_PHASE_STEP_TICKS      100U
 /*
  * Dopo WPTREADY UniPD riceve la fase realmente applicata dal bootstrap.
  * Il suo limite differenziale viene poi rilasciato con la stessa cadenza,
  * evitando un salto alla massima escursione ammessa al primo tick automatico.
  */
-#define WLESS_SM_BOOT_HFC_HANDOFF_STEP_MPU        1U
-#define WLESS_SM_BOOT_HFC_HANDOFF_STEP_TICKS    100U
+#define WLESS_SM_BOOT_HFC_HANDOFF_STEP_MPU       10U
+#define WLESS_SM_BOOT_HFC_HANDOFF_STEP_TICKS     50U
 #define WLESS_SM_BOOT_HFC_SOFT_COIL_LIMIT_MA   4500U
 /*
  * Il BOOST deve sostenere il proprio DCLINK prima che l'HFC inizi a sottrarre
@@ -92,6 +92,21 @@
 /* Limite iniziale del solo duty BOOST. Il valore e' configurabile a runtime
  * tramite SMBOOTDUTY prima del run e non sostituisce UD. */
 #define WLESS_SM_BOOT_BBC_DUTY_MAX_MPU            150U
+/*
+ * Secondo ceiling BBC durante l'hand-off HFC. Il limite runtime SMBHD resta
+ * il valore iniziale; SMBHH e' il valore massimo raggiungibile soltanto
+ * insieme alla rampa del limite HFC. Non sostituisce il limite ordinario UD.
+ */
+#define WLESS_SM_BOOT_BBC_HFC_HANDOFF_DUTY_MAX_MPU 500U
+/*
+ * Dopo il completamento hand-off HFC il BOOST non passa direttamente dal
+ * ceiling SMBHH al limite ordinario UD. Il cap viene aperto a piccoli passi
+ * solo con VDC SOURCE nuovamente sopra SMBOOTSRC: limita d(duty)/dt, quindi
+ * l'energia incrementale iniettata nel DCLINK durante il primo carico HFC.
+ */
+#define WLESS_SM_BOOT_BBC_DUTY_RELEASE_STEP_MPU       10U
+#define WLESS_SM_BOOT_BBC_DUTY_RELEASE_STEP_TICKS    100U
+#define WLESS_SM_BOOT_BBC_DUTY_RELEASE_CONFIRM_TICKS 500U
 /* Il BOOST non viene mai armato a VIN assente. Sul banco il percorso passivo
  * porta VDC SOURCE a circa 11,5 V con VIN=12 V; 10 V e' quindi un consenso
  * fisico affidabile prima di rilasciare il PWM. */
