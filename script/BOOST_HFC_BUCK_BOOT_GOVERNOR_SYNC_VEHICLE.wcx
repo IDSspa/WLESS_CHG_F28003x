@@ -1,0 +1,91 @@
+# BOOST+HFC+BUCK closed loop, governor bootstrap: VEHICLE / COM25
+# Profilo validato a banco con SMBOOTDUTY/SMBHD/SMBHH = 500/525/600 mpu.
+# Eseguire per fasi interleaved con BOOST_HFC_BUCK_BOOT_GOVERNOR_SYNC_STATION.wcx.
+# Ogni comando va inviato singolarmente. I valori sono volatili dopo power cycle.
+
+# FASE V1 - VIN OFF, DCLINK scarico, WPT fermo
+SMVBUS=5
+@200
+SMICOIL=100
+@200
+SMBOOTMODE=1
+@200
+SMBOOTSRC=23
+@200
+SMBA=10
+@200
+SMBH=14
+@200
+SMBOOTDUTY=500
+@200
+SMBHD=525
+@200
+SMBHH=600
+@200
+WPTSRC=20000
+@200
+WPTLOAD=20000
+@200
+WPTIMAX=5000
+@200
+WPTPLIMINIT=15
+@200
+WPTHFCLIM=400
+@200
+WPTHFCPH=470
+@200
+WPTCLAMP=0
+@200
+WPTHFCRAMP=0
+@200
+UE=0
+@200
+UH=1
+@200
+UW=12000
+@200
+UR=24
+@200
+UY=50
+@200
+UA=10000
+@200
+UC=10000
+@200
+UN=22
+@200
+UD=950
+@200
+US=500
+@200
+UF=1
+
+# FASE V2 - dopo la configurazione STATION
+MANUAL
+@500
+SOURCE
+# Attendere: VEHICLE=INIT_SOURCE e STATION=INIT_LOAD.
+
+# FASE V3 - dopo INITOK STATION e STATION=WAIT_SOURCE
+INITOK
+# Attendere: VEHICLE=PRECHARGE_SOURCE e radio OK.
+
+# FASE V4 - dopo WPT=1 sulla STATION
+WPT=1
+@200
+CAP=1
+@200
+WPTCAP=1
+# VIN ON; nessun comando UART durante il plateau.
+
+# FASE V5 - a potenza attiva, prima della chiusura
+CAP=0
+@200
+WPTCAP=0
+
+# FASE V6 - chiusura logica; poi VIN OFF e attesa STANDBY/IDLE
+UE=0
+@200
+WPTHFC=0
+@200
+STOP

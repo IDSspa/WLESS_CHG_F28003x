@@ -14,7 +14,7 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1130;
+const int FIRMWARE_RELEASE = 1132;
 
 /*
  * UART power-command envelope.  These values mirror the native UniPD / BBC
@@ -1617,10 +1617,110 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
             TTPLPFC_bbcDockTestLegMode = TTPLPFC_BBC_DOCK_TEST_LEG_DISABLED;
             TTPLPFC_BBC_disable();
         }
+        else if(WLESS_UART_unipdOpenLoopBoost == 3U)
+        {
+#if TTPLPFC_BBC_SYNC_DOCK_TEST_ENABLE
+            TTPLPFC_BBC_disable();
+            TTPLPFC_bbcDockTestEnable = 0;
+            TTPLPFC_bbcDockTestMode = TTPLPFC_BBC_MODE_BOOST;
+            TTPLPFC_bbcDockTestLegMode = TTPLPFC_BBC_DOCK_TEST_LEG_BOTH;
+            TTPLPFC_bbcDockTestSyncActive = 0;
+            TTPLPFC_bbcDockTestPrechargeActive = 1;
+            TTPLPFC_bbcDockTestEnable = 1;
+#else
+            TTPLPFC_bbcDockTestEnable = 0;
+            TTPLPFC_bbcDockTestLegMode = TTPLPFC_BBC_DOCK_TEST_LEG_DISABLED;
+            TTPLPFC_BBC_disable();
+#endif
+        }
+        else if(WLESS_UART_unipdOpenLoopBoost == 4U)
+        {
+#if TTPLPFC_BBC_SYNC_DOCK_TEST_ENABLE
+            /*
+             * BUCK has no passive/static equivalent of the BOOST precharge:
+             * a static high-side command would connect DCLINK to a possibly
+             * discharged output.  UB=4 is therefore a hand-off only from an
+             * already observed asynchronous BUCK plateau (UB=2).
+             */
+            if((TTPLPFC_bbcDockTestEnable == 0) ||
+               (TTPLPFC_bbcDockTestMode != TTPLPFC_BBC_MODE_BUCK) ||
+               (TTPLPFC_bbcDockTestSyncActive != 0) ||
+               (TTPLPFC_bbcDockTestPrechargeActive != 0))
+            {
+                WLESS_UART_sendString("UB SYNC_BUCK REJECTED STATE\r\n");
+                WLESS_UART_commandErrorCount++;
+            }
+            else
+            {
+                /* The PWM ISR performs the atomic gate-topology hand-off. */
+                TTPLPFC_bbcDockTestSyncRequest = 1;
+            }
+#else
+            WLESS_UART_sendString("UB SYNC_BUCK REJECTED DISABLED\r\n");
+            WLESS_UART_commandErrorCount++;
+#endif
+        }
+        else if(WLESS_UART_unipdOpenLoopBoost == 5U)
+        {
+#if TTPLPFC_BBC_SYNC_DOCK_TEST_ENABLE
+            /*
+             * Direct synchronous BUCK start characterization.  Unlike UB=4,
+             * this path has no preceding asynchronous plateau: the UART only
+             * prepares the test ownership while OST remains asserted.  The
+             * PWM ISR owns the first actuator operation: it installs the
+             * complementary AQ/dead-band topology, writes the first ramped
+             * high-side duty, and only then releases OST.
+             *
+             * This is deliberately test-only and does not alter the UniPD or
+             * FSM startup policy.
+             */
+            TTPLPFC_BBC_disable();
+            TTPLPFC_bbcDockTestEnable = 0;
+            /*
+             * Replicate UB=2's first-ISR mode selection before posting the
+             * direct-sync request.  Otherwise the first ISR sees DISABLED,
+             * TTPLPFC_BBC_setMode(BUCK) calls TTPLPFC_BBC_disable(), and that
+             * cleanup clears bbcDockTestSyncRequest before it can be served.
+             */
+            TTPLPFC_BBC_setMode(TTPLPFC_BBC_MODE_BUCK);
+            TTPLPFC_bbcDockTestMode = TTPLPFC_BBC_MODE_BUCK;
+            TTPLPFC_bbcDockTestLegMode = TTPLPFC_BBC_DOCK_TEST_LEG_BOTH;
+            TTPLPFC_bbcDockTestSyncActive = 0;
+            TTPLPFC_bbcDockTestPrechargeActive = 0;
+            TTPLPFC_bbcDockTestDuty1_pu = UNIPD_bbcPowerOutputDutyMax_pu;
+            TTPLPFC_bbcDockTestDuty2_pu = UNIPD_bbcPowerOutputDutyMax_pu;
+            TTPLPFC_bbcDockTestDutyRamp1_pu = 0.0f;
+            TTPLPFC_bbcDockTestDutyRamp2_pu = 0.0f;
+            TTPLPFC_bbcDockTestDutyRampStep_pu =
+                    UNIPD_bbcPowerOutputDutyRampStep_pu;
+            TTPLPFC_bbcDockTestDutyRampEnable = 1;
+            TTPLPFC_bbcDockTestVbusTrip_Volts =
+                    UNIPD_bbcVdcTripThreshold_Volts;
+            TTPLPFC_bbcDockTestVbusTripLatched = 0;
+            TTPLPFC_bbcDockTestVbusTripCapture_Volts = 0.0f;
+            TTPLPFC_bbcDockTestVbusMax_Volts = 0.0f;
+            TTPLPFC_bbcDockTestSyncRequest = 1;
+            TTPLPFC_bbcDockTestEnable = 1;
+#else
+            WLESS_UART_sendString("UB DIRECT_SYNC_BUCK REJECTED DISABLED\r\n");
+            WLESS_UART_commandErrorCount++;
+#endif
+        }
         else if((WLESS_UART_unipdOpenLoopBoost == 1U) ||
                 (WLESS_UART_unipdOpenLoopBoost == 2U))
         {
-            TTPLPFC_BBC_disable();
+            const int32_t handoffFromPrecharge =
+                    ((WLESS_UART_unipdOpenLoopBoost == 1U) &&
+                     (TTPLPFC_bbcDockTestPrechargeActive != 0)) ? 1 : 0;
+
+            TTPLPFC_bbcDockTestEnable = 0;
+            TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG1_PWM_BASE);
+            TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG2_PWM_BASE);
+
+            if(handoffFromPrecharge == 0)
+            {
+                TTPLPFC_BBC_disable();
+            }
             TTPLPFC_bbcDockTestEnable = 0;
             TTPLPFC_bbcDockTestMode =
                     (WLESS_UART_unipdOpenLoopBoost == 1U) ?
@@ -1640,6 +1740,18 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
             TTPLPFC_bbcDockTestVbusTripLatched = 0;
             TTPLPFC_bbcDockTestVbusTripCapture_Volts = 0.0f;
             TTPLPFC_bbcDockTestVbusMax_Volts = 0.0f;
+
+            if(handoffFromPrecharge != 0)
+            {
+#if TTPLPFC_BBC_SYNC_DOCK_TEST_ENABLE
+                /* Keep OST asserted while static AQ is replaced by dead-band. */
+                TTPLPFC_bbcDockTestPrechargeActive = 0;
+                TTPLPFC_BBC_setMode(TTPLPFC_BBC_MODE_BOOST);
+                TTPLPFC_HAL_setupBBCComplementaryPWM(TTPLPFC_BBC_LEG1_PWM_BASE);
+                TTPLPFC_HAL_setupBBCComplementaryPWM(TTPLPFC_BBC_LEG2_PWM_BASE);
+                TTPLPFC_bbcDockTestSyncActive = 1;
+#endif
+            }
             TTPLPFC_bbcDockTestEnable = 1;
         }
         else

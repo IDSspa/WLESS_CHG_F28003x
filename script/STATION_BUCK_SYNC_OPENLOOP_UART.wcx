@@ -1,0 +1,120 @@
+# STATION — BUCK sincrono open-loop: campagna funzionale ed efficienza
+#
+# Firmware previsto: RELEASE=1132; STATION soltanto.
+# Esclusi: VEHICLE, WPT, HFC e FSM distribuita.
+#
+# PRINCIPIO DELLA PROVA
+# DCLINK e' gia' imposto dalla PSU esterna. Non e' richiesto alcun precharge
+# BUCK statico: UB=2 avvia il BUCK asincrono (high-side PWM, low-side OFF);
+# UB=4 esegue l'handoff all'uscita complementare con lo stesso duty high-side.
+# UB=5 e' una caratterizzazione separata: avvio BUCK direttamente sincrono,
+# senza il plateau asincrono UB=2. Non e' una sequenza UniPD/FSM.
+#
+# SICUREZZA / STRUMENTI
+# - PSU su DCLINK LOAD/STATION: 20 V, limite 4 A, inizialmente OFF.
+# - Carico elettronico su VIN LOAD/STATION: impostato dal profilo CR o CC
+#   indicato sotto; inizialmente ON a DCLINK OFF.
+# - UY=30 V resta la guardia VDC. UC=5000 mA e' la guardia software assoluta
+#   PER RAMO BBC; la protezione analogica CMPSS a 30 A/ramo resta attiva.
+# - Ogni comando UART va inviato singolarmente e atteso. Non inviare UART
+#   nel plateau di potenza. Fare un solo run osservabile alla volta.
+# - Senza scope, la procedura convalida funzione, potenza ed efficienza; non
+#   qualifica direttamente dead-time, non-overlap o i fronti dei gate.
+#
+# CALCOLO
+# Pin  = VPSU * IPSU
+# Pout = VLOAD * ILOAD
+# eta apparente = Pout / Pin
+# Le letture PSU e carico hanno incertezza propria: non riportare precisione
+# superiore a quella degli strumenti.
+
+# ---------------------------------------------------------------------------
+# FASE 0 — CONFIGURAZIONE A DCLINK OFF E BUS SCARICO
+# Verificare FW=1132 e ruolo STATION. CQ? deve mostrare configurazione
+# corrente salvata (source=1, sequence=1, active=1). Se non e' cosi', usare
+# prima STATION_BBC_CURRENT_ZERO_CALIBRATION_UART.wcx a corrente realmente
+# nulla e salvarla in flash; non eseguire UF=2 in presenza di corrente.
+# ---------------------------------------------------------------------------
+FW?
+ROLE?
+CQ?
+UE=0
+UB=0
+HFC=0
+WPTHFC=0
+WPT=0
+UF=1
+UY=30
+UC=5000
+UN=22
+US=10
+
+# Impostare UD soltanto a bus spento, secondo il punto scelto:
+# UD=620  -> campagna CR e primo punto CC=5 A
+# UD=635  -> punto CC=5 A regolato vicino a 12 V
+UD=620
+UQ?
+
+# Atteso a DCLINK OFF: latch VDC/IL=0; correnti residue molto inferiori a 5 A.
+# Non procedere se CQ? non conferma la calibrazione o se UQ? riporta un latch.
+
+# ---------------------------------------------------------------------------
+# PROFILI DI CARICO E RISULTATI OSSERVATI — MODALITA' SINCRONA UB=4
+# Tutti con PSU 20 V / 4 A, UY=30 V, UC=5000 mA, UN=22, US=10.
+#
+# Carico       UD   PSU                  LOAD                 eta apparente
+# CR=20 ohm    500  20 V / 0.26 A        9.87 V / 0.49 A      93.0 %
+# CR=20 ohm    570  20 V / 0.33 A        11.2 V / 0.56 A      95.0 %
+# CR=10 ohm    620  20 V / 0.76 A        12.12 V / 1.211 A   96.6 %
+# CR=6 ohm     620  20 V / 1.24 A        12.0 V / 2.0 A      96.8 %
+# CR=4 ohm     620  20 V / 1.84 A        12.0 V / 2.977 A    97.1 %
+# CR=3 ohm     620  20 V / 2.42 A        12.0 V / 3.93 A     97.4 %
+# CC=5 A       620  20 V / 3.07 A        11.7 V / 4.99 A     95.1 %
+# CC=5 A       635  20 V / 3.14 A        11.98 V / 4.99 A    95.2 %
+#
+# Il punto CC=5 A / UD=635 e' il riferimento regolato a circa 12 V / 5 A.
+
+# ---------------------------------------------------------------------------
+# FASE 1 — PREPARAZIONE DI UN SINGOLO PUNTO
+# 1. A DCLINK OFF, impostare il carico elettronico:
+#    - CR=10, 6, 4 o 3 ohm per la rampa a corrente crescente; oppure
+#    - CC=5 A per il test a domanda di corrente imposta.
+# 2. Se richiesto dal profilo, modificare UD ora (mai nel plateau).
+# 3. Verificare PSU 20 V / 4 A OFF e carico ON.
+# 4. Operatore: DCLINK ON; attendere 5...10 s e annotare la baseline
+#    (PSU, VLOAD, ILOAD). Deve essere circa 0 A lato PSU prima di UB=2.
+
+# ---------------------------------------------------------------------------
+# FASE 2 — PLATEAU BUCK ASINCRONO (riferimento)
+# High-side PWM; low-side forzato OFF.
+# ---------------------------------------------------------------------------
+UB=2
+
+# Operatore: attendere 5...10 s senza UART. Annotare VPSU, IPSU, VLOAD,
+# ILOAD e calcolare Pin/Pout/eta apparente. Se PSU limita, VLOAD e' anomalo,
+# compare un allarme o una corrente di ramo raggiunge la guardia: UB=0,
+# poi DCLINK OFF; non aumentare automaticamente UC.
+
+# ---------------------------------------------------------------------------
+# FASE 3 — HANDOFF ASINCRONO -> SINCRONO
+# CAP deve essere armato prima dell'handoff e congelato prima dello stop.
+# ---------------------------------------------------------------------------
+CAP=1
+UB=4
+
+# Operatore: attendere 5...10 s senza UART. Annotare nuovamente VPSU, IPSU,
+# VLOAD e ILOAD; calcolare Pin/Pout/eta apparente. Il duty non cambia fra
+# UB=2 e UB=4: varia soltanto l'attivazione del low-side complementare.
+# Per la prova di avvio diretto sincrono, sostituire UB=2 / UB=4 con il solo UB=5.
+# L'ISR mantiene OST, configura dead-band complementare, applica il primo duty
+# high-side della rampa e rilascia OST; non inviare UB=4 in questa prova.
+
+# ---------------------------------------------------------------------------
+# FASE 4 — CONGELAMENTO, DUMP E ARRESTO
+# ---------------------------------------------------------------------------
+CAP=0
+CAPD?
+UB=0
+
+# Operatore: DCLINK OFF, verificare/scaricare il bus, quindi impostare il
+# profilo di carico successivo. Non cambiare CR/CC o duty prima di DCLINK OFF.

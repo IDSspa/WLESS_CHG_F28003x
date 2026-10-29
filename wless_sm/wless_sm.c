@@ -266,6 +266,7 @@ static void WLESS_SM_serviceBootstrapFastGuards(void)
          * VIN assente e sotto il VDC passivo del profilo di banco configurato.
          * Il limite energetico iniziale e' gia' predisposto separatamente.
          */
+        TTPLPFC_BBC_stopEpwPrecharge();
         UNIPD_resetControlStatesCommand = 1U;
         /*
          * Il precharge BBC e' governato dal solo cap duty. Un cap VDC o
@@ -277,6 +278,7 @@ static void WLESS_SM_serviceBootstrapFastGuards(void)
         UNIPD_bbcBootstrapDutyLimit_pu =
                 ((float)WLESS_SM_bootBbcDutyMax_mpu) * 0.001f;
         UNIPD_bbcBootstrapDutyLimitEnable = 1U;
+        TTPLPFC_HAL_armBBCPins();
         UNIPD_bbcPowerOutputEnable = 1U;
     }
 
@@ -992,6 +994,7 @@ static void WLESS_SM_disableUnipdPowerPath(void)
     UNIPD_bbcBootstrapVdcReferenceLimitEnable = 0U;
     UNIPD_bbcBootstrapDutyLimitEnable = 0U;
     TTPLPFC_bbcDockTestEnable = 0;
+    TTPLPFC_BBC_stopEpwPrecharge();
     TTPLPFC_BBC_disable();
     UNIPD_disableWptHfcActuator();
     UNIPD_wptIntegrationEnable = 0U;
@@ -1018,6 +1021,7 @@ static void WLESS_SM_prepareUnipdBbcPath(bool enableBbc)
      */
     TTPLPFC_bbcDockTestEnable = 0;
     TTPLPFC_bbcDockTestLegMode = TTPLPFC_BBC_DOCK_TEST_LEG_DISABLED;
+    TTPLPFC_BBC_stopEpwPrecharge();
     TTPLPFC_BBC_disable();
 
     UNIPD_disableWptHfcActuator();
@@ -1041,6 +1045,7 @@ static void WLESS_SM_prepareUnipdBbcPath(bool enableBbc)
         /* Il consenso PWM e' dato solo da serviceBootstrapFastGuards() dopo
          * la presenza fisica di VIN, non all'ingresso nello stato FSM. */
         UNIPD_bbcPowerOutputEnable = 0U;
+        TTPLPFC_BBC_startEpwPrecharge();
     }
     else
     {
@@ -1209,6 +1214,9 @@ static void WLESS_SM_setPowerCommand(WLESS_SM_PowerCommand command)
         {
             UNIPD_resetControlStatesCommand = 1U;
         }
+        /* LOAD has no passive precharge: block both gates while EPWM takes
+         * ownership, then let the first UniPD cycle install BUCK complement. */
+        TTPLPFC_HAL_armBBCPins();
         UNIPD_bbcPowerOutputEnable = 1U;
     }
 #endif

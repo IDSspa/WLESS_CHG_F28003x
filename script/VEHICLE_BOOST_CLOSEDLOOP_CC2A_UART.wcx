@@ -1,0 +1,57 @@
+# BOOST SOURCE closed-loop, CC=2 A — profilo verificato
+# FW 1132. PSU VIN SOURCE: 12 V / 6 A OFF.
+# Carico elettronico DCLINK SOURCE: CC=2.00 A ON.
+# Multimetro in parallelo a DCLINK SOURCE.
+# Non usare VIN VEHICLE come misura: UH=1 applica l'override UniPD a 12 V.
+# Ogni comando va trasmesso singolarmente, rispettando gli stati FSM indicati.
+
+# COM25 / VEHICLE, a VIN OFF e DCLINK scarico
+UE=0
+UB=0
+HFC=0
+WPTHFC=0
+WPT=0
+SMVBUS=5
+SMICOIL=100
+SMBOOTMODE=1
+SMBOOTSRC=60
+SMBH=0
+SMBA=10
+SMBOOTDUTY=600
+UH=1
+UW=12000
+UR=24
+UY=50
+UA=5000
+UC=10000
+UN=22
+UD=950
+US=500
+UF=1
+WPTSRC=20000
+WPTLOAD=20000
+WPTIMAX=5000
+WPTPLIMINIT=15
+
+# COM26 / STATION, a VIN OFF
+SMVBUS=5
+SMICOIL=400
+WPTSRC=20000
+WPTLOAD=20000
+
+# Inizializzazione FSM distribuita
+# COM25: MANUAL, poi SOURCE; attendere INIT_SOURCE/INIT_LOAD.
+# COM26: INITOK; attendere WAIT_SOURCE.
+# COM25: INITOK; attendere PRECHARGE_SOURCE/PRECHARGE_LOAD e radio OK.
+# COM26: WPT=1
+# COM25: WPT=1
+# Verificare WPT? su entrambe: EN=1, HENA=0, HFLT=0.
+
+# Capture prima del run
+# COM25: CAP=1, WPTCAP=1
+# COM26: WPTCAP=1
+# Operatore: VIN ON. Attendere il plateau, senza UART.
+# Atteso: PSU circa 12 V / 4.16 A; DCLINK circa 24 V; CC 2 A.
+
+# Chiusura: con potenza ancora attiva congelare COM25 CAP=0, WPTCAP=0;
+# COM26 WPTCAP=0; poi COM25 STOP. Operatore: VIN OFF e scarica DCLINK.

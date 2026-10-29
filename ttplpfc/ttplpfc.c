@@ -224,6 +224,7 @@ float32_t TTPLPFC_duty_ref_pu;
 volatile TTPLPFC_BBC_Mode TTPLPFC_bbcMode;
 volatile int32_t TTPLPFC_bbcEnabled;
 volatile int32_t TTPLPFC_bbcDockTestEnable;
+volatile int32_t TTPLPFC_bbcEpwPrechargeEnable;
 volatile TTPLPFC_BBC_Mode TTPLPFC_bbcDockTestMode = TTPLPFC_BBC_MODE_BOOST;
 volatile TTPLPFC_BBC_DockTestLegMode TTPLPFC_bbcDockTestLegMode =
         TTPLPFC_BBC_DOCK_TEST_LEG_DISABLED;
@@ -237,6 +238,9 @@ volatile int32_t TTPLPFC_bbcDockTestDutyRampEnable;
 volatile float32_t TTPLPFC_bbcDockTestDutyRampStep_pu = 0.00001f;
 volatile float32_t TTPLPFC_bbcDockTestDutyRamp1_pu;
 volatile float32_t TTPLPFC_bbcDockTestDutyRamp2_pu;
+volatile int32_t TTPLPFC_bbcDockTestSyncActive;
+volatile int32_t TTPLPFC_bbcDockTestSyncRequest;
+volatile int32_t TTPLPFC_bbcDockTestPrechargeActive;
 float32_t TTPLPFC_powerRms_Watts;
 float32_t TTPLPFC_ac_curRms_sensed_Amps;
 float32_t TTPLPFC_ac_volRms_sensed_Volts;

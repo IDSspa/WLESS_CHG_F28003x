@@ -1,0 +1,57 @@
+# BOOST+HFC+BUCK closed loop, governor bootstrap: STATION / COM26
+# Complementare a BOOST_HFC_BUCK_BOOT_GOVERNOR_SYNC_VEHICLE.wcx.
+# Il profilo 500/525/600 mpu e' configurato esclusivamente sulla VEHICLE.
+# Ogni comando va inviato singolarmente. I valori sono volatili dopo power cycle.
+
+# FASE S1 - VIN OFF, DCLINK scarico, WPT fermo
+SMVBUS=5
+@200
+SMICOIL=400
+@200
+SMBOOTLOAD=15
+@200
+WPTSRC=20000
+@200
+WPTLOAD=20000
+@200
+WPTIMAX=5000
+@200
+UE=0
+@200
+UH=2
+@200
+UP=0
+@200
+UV=20000
+@200
+UA=4000
+@200
+UD=950
+@200
+US=2000
+@200
+UX=30000
+@200
+UC=6000
+@200
+UN=22
+@200
+UF=1
+
+# FASE S2 - dopo MANUAL/SOURCE VEHICLE e con STATION=INIT_LOAD
+INITOK
+# Attendere: STATION=WAIT_SOURCE.
+
+# FASE S3 - dopo PRECHARGE_SOURCE VEHICLE
+WPT=1
+@200
+CAP=1
+@200
+WPTCAP=1
+# La VEHICLE esegue WPT=1; poi VIN ON senza ulteriori UART.
+
+# FASE S4 - a potenza attiva, prima della chiusura
+CAP=0
+@200
+WPTCAP=0
+# Dopo STOP VEHICLE, VIN OFF e attesa STANDBY/IDLE.

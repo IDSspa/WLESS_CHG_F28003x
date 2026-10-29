@@ -283,6 +283,7 @@ typedef enum
 extern volatile TTPLPFC_BBC_Mode TTPLPFC_bbcMode;
 extern volatile int32_t TTPLPFC_bbcEnabled;
 extern volatile int32_t TTPLPFC_bbcDockTestEnable;
+extern volatile int32_t TTPLPFC_bbcEpwPrechargeEnable;
 extern volatile TTPLPFC_BBC_Mode TTPLPFC_bbcDockTestMode;
 extern volatile TTPLPFC_BBC_DockTestLegMode TTPLPFC_bbcDockTestLegMode;
 extern volatile float32_t TTPLPFC_bbcDockTestDuty1_pu;
@@ -295,6 +296,9 @@ extern volatile int32_t TTPLPFC_bbcDockTestDutyRampEnable;
 extern volatile float32_t TTPLPFC_bbcDockTestDutyRampStep_pu;
 extern volatile float32_t TTPLPFC_bbcDockTestDutyRamp1_pu;
 extern volatile float32_t TTPLPFC_bbcDockTestDutyRamp2_pu;
+extern volatile int32_t TTPLPFC_bbcDockTestSyncActive;
+extern volatile int32_t TTPLPFC_bbcDockTestSyncRequest;
+extern volatile int32_t TTPLPFC_bbcDockTestPrechargeActive;
 
 //
 // globals
@@ -490,6 +494,11 @@ static inline void TTPLPFC_BBC_disable(void)
     TTPLPFC_bbcEnabled = 0;
     TTPLPFC_duty1_pu = 0.0f;
     TTPLPFC_duty2_pu = 0.0f;
+    // The synchronous docking hand-off is valid only in the current powered
+    // run.  Every disable/fault/mode change removes both test owners.
+    TTPLPFC_bbcDockTestSyncActive = 0;
+    TTPLPFC_bbcDockTestSyncRequest = 0;
+    TTPLPFC_bbcDockTestPrechargeActive = 0;
 
     TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG1_PWM_BASE, 0.0f);
     TTPLPFC_HAL_updatePWM(TTPLPFC_BBC_LEG2_PWM_BASE, 0.0f);
@@ -559,6 +568,55 @@ static inline void TTPLPFC_BBC_updateVbusSense(void)
             TTPLPFC_WLESS_VBUS_SENSE_CORRECTION;
 }
 
+/*
+ * Static EPWM precharge retains ePWM/TZ ownership of the BBC pins while
+ * holding A=high-side ON and B=low-side OFF.  It produces no switching and
+ * is superseded atomically by the first UniPD synchronous command.
+ */
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_runEpwPrecharge)
+static inline int32_t TTPLPFC_BBC_runEpwPrecharge(void)
+{
+#if TTPLPFC_BBC_EPWM_PRECHARGE_ENABLE == 1
+    if(TTPLPFC_bbcEpwPrechargeEnable == 0)
+    {
+        return 0;
+    }
+
+    TTPLPFC_BBC_updateVbusSense();
+    TTPLPFC_bbcEnabled = 0;
+    TTPLPFC_duty1_pu = 0.0f;
+    TTPLPFC_duty2_pu = 0.0f;
+    TTPLPFC_HAL_setupBBCPrechargePWM(TTPLPFC_BBC_LEG1_PWM_BASE);
+    TTPLPFC_HAL_setupBBCPrechargePWM(TTPLPFC_BBC_LEG2_PWM_BASE);
+    TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG1_PWM_BASE);
+    TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG2_PWM_BASE);
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_startEpwPrecharge)
+static inline void TTPLPFC_BBC_startEpwPrecharge(void)
+{
+#if TTPLPFC_BBC_EPWM_PRECHARGE_ENABLE == 1
+    TTPLPFC_HAL_armBBCPins();
+    TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG1_PWM_BASE);
+    TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG2_PWM_BASE);
+    TTPLPFC_bbcEpwPrechargeEnable = 1;
+#endif
+}
+
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_stopEpwPrecharge)
+static inline void TTPLPFC_BBC_stopEpwPrecharge(void)
+{
+#if TTPLPFC_BBC_EPWM_PRECHARGE_ENABLE == 1
+    TTPLPFC_bbcEpwPrechargeEnable = 0;
+    TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG1_PWM_BASE);
+    TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG2_PWM_BASE);
+#endif
+}
+
 #pragma FUNC_ALWAYS_INLINE(TTPLPFC_BBC_runDockingTest)
 static inline int32_t TTPLPFC_BBC_runDockingTest(void)
 {
@@ -570,6 +628,23 @@ static inline int32_t TTPLPFC_BBC_runDockingTest(void)
         TTPLPFC_bbcDockTestDutyRamp2_pu = 0.0f;
         return 0;
     }
+
+#if TTPLPFC_BBC_SYNC_DOCK_TEST_ENABLE
+    /*
+     * UB=3 owns EPWM6/7 with a static, non-switching precharge pattern.
+     * It deliberately does not use SMBA or the distributed FSM: the operator
+     * observes VDC close to VIN before explicitly requesting UB=1.
+     */
+    if(TTPLPFC_bbcDockTestPrechargeActive != 0)
+    {
+        TTPLPFC_HAL_setupBBCPrechargePWM(TTPLPFC_BBC_LEG1_PWM_BASE);
+        TTPLPFC_HAL_setupBBCPrechargePWM(TTPLPFC_BBC_LEG2_PWM_BASE);
+        TTPLPFC_bbcEnabled = 0;
+        TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG1_PWM_BASE);
+        TTPLPFC_HAL_clearOSTPWMTripFlag(TTPLPFC_BBC_LEG2_PWM_BASE);
+        return 1;
+    }
+#endif
 
 #if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
     //
@@ -603,32 +678,56 @@ static inline int32_t TTPLPFC_BBC_runDockingTest(void)
 
     TTPLPFC_BBC_setMode(TTPLPFC_bbcDockTestMode);
 
+#if TTPLPFC_BBC_SYNC_DOCK_TEST_ENABLE
+    /*
+     * The UART requests the BUCK asynchronous-to-synchronous hand-off, but
+     * only this ISR owns the ordered actuator transition: block both gates,
+     * replace AQ/dead-band, retain the already established Dhigh, write CMPA,
+     * then release OST below.  This prevents UART/ISR ownership interleaving.
+     */
+    if(TTPLPFC_bbcDockTestSyncRequest != 0)
+    {
+        TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG1_PWM_BASE);
+        TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG2_PWM_BASE);
+        TTPLPFC_HAL_setupBBCComplementaryPWM(TTPLPFC_BBC_LEG1_PWM_BASE);
+        TTPLPFC_HAL_setupBBCComplementaryPWM(TTPLPFC_BBC_LEG2_PWM_BASE);
+        TTPLPFC_bbcDockTestSyncActive = 1;
+        TTPLPFC_bbcDockTestSyncRequest = 0;
+    }
+#endif
+
     if(TTPLPFC_bbcMode == TTPLPFC_BBC_MODE_BOOST)
     {
-        if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG1_ONLY) ||
-           (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
+        if(TTPLPFC_bbcDockTestSyncActive == 0)
         {
-            TTPLPFC_HAL_setupBBCBoostLowSidePWM(TTPLPFC_BBC_LEG1_PWM_BASE);
-        }
+            if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG1_ONLY) ||
+               (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
+            {
+                TTPLPFC_HAL_setupBBCBoostLowSidePWM(TTPLPFC_BBC_LEG1_PWM_BASE);
+            }
 
-        if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG2_ONLY) ||
-           (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
-        {
-            TTPLPFC_HAL_setupBBCBoostLowSidePWM(TTPLPFC_BBC_LEG2_PWM_BASE);
+            if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG2_ONLY) ||
+               (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
+            {
+                TTPLPFC_HAL_setupBBCBoostLowSidePWM(TTPLPFC_BBC_LEG2_PWM_BASE);
+            }
         }
     }
     else if(TTPLPFC_bbcMode == TTPLPFC_BBC_MODE_BUCK)
     {
-        if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG1_ONLY) ||
-           (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
+        if(TTPLPFC_bbcDockTestSyncActive == 0)
         {
-            TTPLPFC_HAL_setupBBCBuckHighSidePWM(TTPLPFC_BBC_LEG1_PWM_BASE);
-        }
+            if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG1_ONLY) ||
+               (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
+            {
+                TTPLPFC_HAL_setupBBCBuckHighSidePWM(TTPLPFC_BBC_LEG1_PWM_BASE);
+            }
 
-        if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG2_ONLY) ||
-           (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
-        {
-            TTPLPFC_HAL_setupBBCBuckHighSidePWM(TTPLPFC_BBC_LEG2_PWM_BASE);
+            if((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG2_ONLY) ||
+               (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH))
+            {
+                TTPLPFC_HAL_setupBBCBuckHighSidePWM(TTPLPFC_BBC_LEG2_PWM_BASE);
+            }
         }
     }
 
@@ -668,13 +767,25 @@ static inline int32_t TTPLPFC_BBC_runDockingTest(void)
         TTPLPFC_bbcDockTestDutyRamp2_pu = TTPLPFC_bbcDockTestDuty2_pu;
     }
 
-    TTPLPFC_BBC_setDuty(
-            (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG1_ONLY) ||
-            (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH) ?
-                    TTPLPFC_bbcDockTestDutyRamp1_pu : 0.0f,
-            (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG2_ONLY) ||
-            (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH) ?
-                    TTPLPFC_bbcDockTestDutyRamp2_pu : 0.0f);
+    float32_t dockDuty1 =
+            ((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG1_ONLY) ||
+             (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH)) ?
+                    TTPLPFC_bbcDockTestDutyRamp1_pu : 0.0f;
+    float32_t dockDuty2 =
+            ((TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG2_ONLY) ||
+             (TTPLPFC_bbcDockTestLegMode == TTPLPFC_BBC_DOCK_TEST_LEG_BOTH)) ?
+                    TTPLPFC_bbcDockTestDutyRamp2_pu : 0.0f;
+
+    if((TTPLPFC_bbcDockTestSyncActive != 0) &&
+       (TTPLPFC_bbcMode == TTPLPFC_BBC_MODE_BOOST))
+    {
+        /* UB=1 is specified in familiar low-side BOOST duty.  The synchronous
+         * ePWM primitive instead receives high-side duty, hence 1-Dlow. */
+        dockDuty1 = 1.0f - dockDuty1;
+        dockDuty2 = 1.0f - dockDuty2;
+    }
+
+    TTPLPFC_BBC_setDuty(dockDuty1, dockDuty2);
 
     TTPLPFC_bbcEnabled = 0;
 

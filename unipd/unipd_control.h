@@ -232,8 +232,9 @@ extern volatile float UNIPD_bbcBootstrapCurrentLimit_Amps;
  * BOOST. La FSM lo fa partire dal VDC fisico e lo incrementa gradualmente. */
 extern volatile unsigned int UNIPD_bbcBootstrapVdcReferenceLimitEnable;
 extern volatile float UNIPD_bbcBootstrapVdcReferenceLimit_Volts;
-/* Clamp temporaneo sul duty effettivamente applicato. A differenza di UD,
- * esiste solo durante il bootstrap gestito dalla FSM. */
+/* Massimo temporaneo del duty low-side BOOST durante il bootstrap FSM.
+ * Nel ponte sincrono viene convertito internamente in un minimo Dhigh.
+ * A differenza di UD, esiste solo durante il bootstrap. */
 extern volatile unsigned int UNIPD_bbcBootstrapDutyLimitEnable;
 extern volatile float UNIPD_bbcBootstrapDutyLimit_pu;
 extern volatile float UNIPD_bbcPowerOutputDutyMax_pu;

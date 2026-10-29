@@ -1,0 +1,31 @@
+# BUCK LOAD closed-loop, carico elettronico CV=12 V — profilo isolato
+# FW 1132. PSU DCLINK STATION: 20 V / 4 A OFF.
+# Carico elettronico VIN STATION: CV=12 V ON.
+# VIN SOURCE e DCLINK SOURCE aperti. WPT/HFC/FSM distribuita non usati.
+# Il carico CV rappresenta il terminale batteria; la sua corrente e la PSU
+# consentono il calcolo dell'efficienza.
+
+# COM26 / STATION, DCLINK OFF e scarico
+UE=0
+UB=0
+HFC=0
+WPTHFC=0
+WPT=0
+UH=2
+UP=0
+UV=18000
+UA=4000
+UC=6000
+UN=22
+UD=950
+US=2000
+UX=24000
+UY=30
+UF=1
+CAP=1
+UE=1
+
+# Operatore: DCLINK ON. Attendere 5...10 s senza UART.
+# Atteso: VIN STATION regolata a circa 12 V; annotare PSU e carico.
+
+# Chiusura: CAP=0, poi UE=0; operatore DCLINK OFF e scarica.

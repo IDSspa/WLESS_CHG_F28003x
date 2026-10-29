@@ -98,6 +98,7 @@ void TTPLPFC_HAL_setupGainChangeGPIO(void);
 void TTPLPFC_HAL_setupEPWMtoTriggerADCSOC(uint32_t base);
 
 void TTPLPFC_HAL_setPinsAsPWM();
+void TTPLPFC_HAL_armBBCPins(void);
 
 void TTPLPFC_HAL_setupDAC(void);
 
@@ -317,6 +318,11 @@ static inline void TTPLPFC_HAL_setupBBCComplementaryPWM(uint32_t base)
     // with a non-overlap interval. The trip-zone configuration remains common
     // to A and B and therefore forces both gate commands low on OST/CBC.
     //
+    /* BBC owns the physical A=high-side and B=low-side mapping.  Clear any
+     * legacy PFC output swap before enabling the complementary pair. */
+    HWREGH(base + EPWM_O_DBCTL) =
+            (HWREGH(base + EPWM_O_DBCTL) & ~0x3000U);
+
     HWREGH(base + EPWM_O_AQCTLA) = 0;
     HWREGH(base + EPWM_O_AQCTLB) = 0;
 
@@ -373,6 +379,17 @@ static inline void TTPLPFC_HAL_setupBBCBoostLowSidePWM(uint32_t base)
     //
     HWREGH(base + EPWM_O_AQCSFRC) = 0x01;
 #endif
+}
+
+#pragma FUNC_ALWAYS_INLINE(TTPLPFC_HAL_setupBBCPrechargePWM)
+static inline void TTPLPFC_HAL_setupBBCPrechargePWM(uint32_t base)
+{
+    /* Static upper ON / lower OFF.  ePWM and TZ retain pin ownership. */
+    HWREGH(base + EPWM_O_DBCTL) =
+            (HWREGH(base + EPWM_O_DBCTL) & ~EPWM_DBCTL_OUT_MODE_M);
+    HWREGH(base + EPWM_O_AQCTLA) = 0;
+    HWREGH(base + EPWM_O_AQCTLB) = 0;
+    HWREGH(base + EPWM_O_AQCSFRC) = 0x06;
 }
 
 #pragma FUNC_ALWAYS_INLINE(TTPLPFC_HAL_setupBBCBuckHighSidePWM)

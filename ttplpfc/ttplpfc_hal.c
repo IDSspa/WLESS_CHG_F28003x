@@ -872,6 +872,23 @@ void TTPLPFC_HAL_setPinsAsPWM()
 #endif
 }
 
+/* Keep both gates blocked while EPWM6/7 take ownership of the BBC pins. */
+void TTPLPFC_HAL_armBBCPins(void)
+{
+    TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG1_PWM_BASE);
+    TTPLPFC_HAL_forceOSTPWMTrip(TTPLPFC_BBC_LEG2_PWM_BASE);
+
+    GPIO_writePin(TTPLPFC_HIGH_FREQ_PWM1_H_GPIO, 0);
+    GPIO_writePin(TTPLPFC_HIGH_FREQ_PWM1_L_GPIO, 0);
+    GPIO_writePin(TTPLPFC_HIGH_FREQ_PWM2_H_GPIO, 0);
+    GPIO_writePin(TTPLPFC_HIGH_FREQ_PWM2_L_GPIO, 0);
+
+    GPIO_setPinConfig(TTPLPFC_HIGH_FREQ_PWM1_H_GPIO_PIN_CONFIG);
+    GPIO_setPinConfig(TTPLPFC_HIGH_FREQ_PWM1_L_GPIO_PIN_CONFIG);
+    GPIO_setPinConfig(TTPLPFC_HIGH_FREQ_PWM2_H_GPIO_PIN_CONFIG);
+    GPIO_setPinConfig(TTPLPFC_HIGH_FREQ_PWM2_L_GPIO_PIN_CONFIG);
+}
+
 //
 //
 //

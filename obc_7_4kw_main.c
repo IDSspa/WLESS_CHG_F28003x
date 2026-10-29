@@ -237,7 +237,8 @@ interrupt void ISR2_primToSecPowerFlow(void)
 #endif
 #endif
 #if TTPLPFC_EPWM67_ACTIVE_CONTROL == TTPLPFC_EPWM67_CONTROL_BBC
-    if(TTPLPFC_BBC_runDockingTest() == 0)
+    if((TTPLPFC_BBC_runEpwPrecharge() == 0) &&
+       (TTPLPFC_BBC_runDockingTest() == 0))
     {
         OBC_7_4KW_runUnipdBbcControl();
     }

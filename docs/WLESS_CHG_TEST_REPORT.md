@@ -5291,3 +5291,39 @@ carico viene registrato separatamente come misura del nodo di potenza.
 La diagnostica VBUS/VBUS2 riduce temporaneamente il buffer BBC da 32 a 16
 campioni per rispettare il limite RAM. Va rimossa o riportata a 32 campioni al
 termine dell'indagine.
+
+### BUCK open-loop sincrono: avvio diretto senza plateau asincrono, FW 1132
+
+Configurazione: STATION soltanto, WPT/HFC/FSM distribuita disabilitati; PSU
+esterna sul DCLINK LOAD a `20 V / 4 A`; carico elettronico sul VIN LOAD in
+CR `3 ohm`; `UD=620 mpu`, `UY=30 V`, `UC=5000 mA` per ramo, `UN=22`,
+`US=10`. Le correnti BBC sono state azzerate a DCLINK OFF e salvate; `CQ?` ha
+confermato configurazione attiva e persistita.
+
+La sequenza precedente usava `UB=2` (BUCK asincrono: high-side PWM,
+low-side OFF), quindi `UB=4` per il passaggio complementare. Al punto di
+carico indicato aveva dato:
+
+| Sequenza | PSU | Carico |
+|---|---:|---:|
+| `UB=2`, asincrono | 20 V / 2,16 A | 10,3 V / 3,44 A |
+| `UB=2` poi `UB=4`, sincrono | 20 V / 2,42 A | 12,0 V / 3,93 A |
+
+E' stato introdotto il comando diagnostico `UB=5`, che esegue in un singolo
+avvio la sequenza necessaria: OST su entrambe le gambe, selezione preventiva
+della modalita' BUCK, configurazione PWM complementare con dead-time,
+impostazione del duty high-side e rilascio OST nella ISR. La selezione modo
+deve precedere la richiesta sincrona: se avviene per la prima volta nella ISR,
+`TTPLPFC_BBC_setMode(BUCK)` esegue il cleanup BBC e cancella la richiesta,
+ricreando il comportamento asincrono.
+
+Con il percorso corretto, il solo `UB=5` ha dato `20 V / 2,42 A` lato PSU e
+`11,8 V / 3,93 A` sul carico. Il capture BBC congelato ha riportato DCLINK
+circa `19,9 V`, duty stabile `620 mpu` su entrambi i rami e nessun trip BBC.
+
+Esito: PASS per l'avvio diretto del BUCK complementare in open-loop, fino al
+punto di circa 47 W sul carico. Nel BUCK non e' pertanto richiesta una fase di
+precharge energetico o un plateau asincrono prima del comando complementare.
+Questo non valida ancora l'integrazione closed-loop/FSM: il futuro `LOAD_ON`
+deve eseguire la medesima sequenza atomica nell'ISR, senza usare UART durante
+il run. La prova, svolta senza scope, non qualifica fronti di gate o dead-time.

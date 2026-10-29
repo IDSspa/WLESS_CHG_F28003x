@@ -35,23 +35,42 @@
 //
 // Select the BBC gate-drive topology.
 //
-// 0: validated bench topology. BOOST drives only EPWMxB (low side), BUCK
+// 0: asynchronous bench topology. BOOST drives only EPWMxB (low side), BUCK
 //    drives only EPWMxA (high side). The inactive device is forced low.
-// 1: experimental UniPD synchronous topology. EPWMxA carries the UniPD duty
-//    delta and the dead-band module generates the complementary EPWMxB
-//    command (1-delta), with the configured RED/FED delays.
+// 1: synchronous UniPD topology. EPWMxA carries the UniPD high-side duty and
+//    the dead-band module generates the complementary EPWMxB command.
 //
-// Keep disabled in production and bench builds until a bidirectional source/
-// sink setup, gate-level captures and shoot-through protection have been
-// explicitly reviewed. Enabling this option can return energy to VBATT/VIN.
+// SOURCE has a protected EPWM static precharge (high-side ON, low-side OFF)
+// before the first synchronous BOOST command. LOAD starts directly with the
+// complementary BUCK pair; this is the UB=5 sequence verified on the bench.
 //
 #ifndef TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
-#define TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE         0
+#define TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE         1
+#endif
+
+//
+// BOOST-only characterization aid.  The test sequence is explicitly:
+// UB=3 static precharge (upper ON, lower OFF), then UB=1 synchronous docking.
+// It is intentionally separate from the production UniPD/governor path.
+//
+#ifndef TTPLPFC_BBC_SYNC_DOCK_TEST_ENABLE
+#define TTPLPFC_BBC_SYNC_DOCK_TEST_ENABLE             1
 #endif
 
 #if (TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE != 0) && \
     (TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE != 1)
 #error "TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE must be 0 or 1"
+#endif
+
+/* SOURCE precharge keeps ePWM6/7 in the static A=ON/B=OFF state until
+ * SMBA confirms the passive VIN-to-DCLINK path. */
+#ifndef TTPLPFC_BBC_EPWM_PRECHARGE_ENABLE
+#define TTPLPFC_BBC_EPWM_PRECHARGE_ENABLE            1
+#endif
+
+#if (TTPLPFC_BBC_EPWM_PRECHARGE_ENABLE != 0) && \
+    (TTPLPFC_BBC_EPWM_PRECHARGE_ENABLE != 1)
+#error "TTPLPFC_BBC_EPWM_PRECHARGE_ENABLE must be 0 or 1"
 #endif
 
 #ifndef TTPLPFC_EPWM67_ACTIVE_CONTROL

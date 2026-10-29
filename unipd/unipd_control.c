@@ -1714,18 +1714,31 @@ void OBC_7_4KW_runUnipdBbcControl(void)
         float dutyMax = unipd_clampf(UNIPD_bbcPowerOutputDutyMax_pu,
                                      0.0f,
                                      0.95f);
+        float dutyMin = 0.0f;
 
-        /* Il bootstrap puo' limitare il comando effettivamente applicato senza
-         * alterare UD, che resta il limite permanente/configurato del BBC. */
+        /*
+         * The bootstrap setting is expressed in the historically used BOOST
+         * low-side coordinate.  In the synchronous bridge the actuator owns
+         * high-side duty, Dhigh = 1 - Dlow: a low-side maximum is therefore a
+         * lower bound on Dhigh, not a conventional upper duty clamp.
+         *
+         * UD remains the ordinary, permanent upper high-side limit.  This
+         * distinction preserves the physical intent of SMBOOTDUTY: limit the
+         * energy injected into the DCLINK during SOURCE precharge.
+         */
         if(UNIPD_bbcBootstrapDutyLimitEnable != 0U)
         {
-            const float bootstrapDutyMax =
+            const float bootstrapLowSideDutyMax =
                     unipd_clampf(UNIPD_bbcBootstrapDutyLimit_pu,
                                  0.0f,
                                  0.95f);
-            if(bootstrapDutyMax < dutyMax)
+            if(UNIPD_bbcInputs.tx_1_rx_0 != 0U)
             {
-                dutyMax = bootstrapDutyMax;
+                dutyMin = 1.0f - bootstrapLowSideDutyMax;
+            }
+            else if(bootstrapLowSideDutyMax < dutyMax)
+            {
+                dutyMax = bootstrapLowSideDutyMax;
             }
         }
 #if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
@@ -1747,10 +1760,14 @@ void OBC_7_4KW_runUnipdBbcControl(void)
                 UNIPD_bbcOutput.duty_cycle_pwm_b;
 #endif
 
+        if(dutyMin > dutyMax)
+        {
+            dutyMin = dutyMax;
+        }
         UNIPD_bbcAppliedDutyA_pu =
-                unipd_clampf(UNIPD_bbcMappedDutyA_pu, 0.0f, dutyMax);
+                unipd_clampf(UNIPD_bbcMappedDutyA_pu, dutyMin, dutyMax);
         UNIPD_bbcAppliedDutyB_pu =
-                unipd_clampf(UNIPD_bbcMappedDutyB_pu, 0.0f, dutyMax);
+                unipd_clampf(UNIPD_bbcMappedDutyB_pu, dutyMin, dutyMax);
 
         if(UNIPD_bbcPowerOutputEnable != 0U)
         {
@@ -1813,19 +1830,8 @@ void OBC_7_4KW_runUnipdBbcControl(void)
             }
 #endif
 
-            /*
-             * BOOST asynchronous maps the UniPD delta to low-side duty as
-             * Dlow = 1 - delta.  A bootstrap cap is deliberately imposed
-             * after the UniPD coil-current calculation; without tracking,
-             * the next cycle retains V_L references corresponding to the
-             * unclamped delta, although the bridge has applied Dlow_ramped.
-             *
-             * Feed the physical command back only while the temporary
-             * bootstrap cap is active and only in BOOST.  This preserves the
-             * ordinary UniPD/Buck path while making the current-loop state
-             * bumpless with respect to the voltage actually imposed across
-             * each BBC inductor.
-             */
+            /* Keep the BOOST current-loop state coherent with the high-side
+             * duty actually applied after the temporary low-side cap. */
             unipd_trackBoostCoilVoltageFromAppliedDuty();
 
             const TTPLPFC_BBC_Mode requestedMode =
@@ -1898,10 +1904,10 @@ static void unipd_trackBoostCoilVoltageFromAppliedDuty(void)
      * This helper is called after cap and ramp.  If neither leg was altered,
      * leave the state produced by the standard UniPD recurrence untouched.
      */
-    if((UNIPD_bbcRampedDutyA_pu >=
-            (UNIPD_bbcMappedDutyA_pu - 0.000001f)) &&
-       (UNIPD_bbcRampedDutyB_pu >=
-            (UNIPD_bbcMappedDutyB_pu - 0.000001f)))
+    if((UNIPD_bbcRampedDutyA_pu <=
+            (UNIPD_bbcMappedDutyA_pu + 0.000001f)) &&
+       (UNIPD_bbcRampedDutyB_pu <=
+            (UNIPD_bbcMappedDutyB_pu + 0.000001f)))
     {
         return;
     }
@@ -1914,9 +1920,9 @@ static void unipd_trackBoostCoilVoltageFromAppliedDuty(void)
                         UNIPD_vDcMaxAlg_Volts);
     vLMin = vBat - vDc;
 
-    /* For BOOST, delta = 1 - Dlow and V_L = VBAT - delta * VDC. */
-    vLEffectiveA = vBat - ((1.0f - UNIPD_bbcRampedDutyA_pu) * vDc);
-    vLEffectiveB = vBat - ((1.0f - UNIPD_bbcRampedDutyB_pu) * vDc);
+    /* BOOST actuator duty is Dhigh (= delta), V_L = VBAT - Dhigh * VDC. */
+    vLEffectiveA = vBat - (UNIPD_bbcRampedDutyA_pu * vDc);
+    vLEffectiveB = vBat - (UNIPD_bbcRampedDutyB_pu * vDc);
     vLEffectiveA = unipd_clampf(vLEffectiveA, vLMin, vBat);
     vLEffectiveB = unipd_clampf(vLEffectiveB, vLMin, vBat);
 
