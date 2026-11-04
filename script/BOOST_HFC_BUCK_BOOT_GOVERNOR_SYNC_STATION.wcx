@@ -2,24 +2,13 @@
 # Complementare a BOOST_HFC_BUCK_BOOT_GOVERNOR_SYNC_VEHICLE.wcx.
 # Il profilo 500/525/600 mpu e' configurato esclusivamente sulla VEHICLE.
 # Ogni comando va inviato singolarmente. Gli override UART restano volatili;
-# il profilo standard FW1133 viene ripristinato a ogni power cycle.
+# il profilo standard FW1134 viene ripristinato a ogni power cycle.
 
-# FASE S1 - VIN OFF, DCLINK scarico.
-# SMVBUS, SMICOIL, SMBOOTLOAD e riferimenti WPT sono default FW1133.
-# Restano da configurare esplicitamente i soli parametri BBC LOAD.
-UH=2
-@200
-UV=20000
-@200
-UA=4000
-@200
-UD=950
-@200
-US=2000
-@200
-UX=30000
-@200
-UC=6000
+# FASE S1 - nessun comando UART di profilo.
+# A VIN OFF e DCLINK scarico, il firmware FW1134 applica il profilo LOAD
+# entrando in LOAD_PRECHARGE: UH=2, UP=0, UV=20000 mV, UA=4000 mA,
+# UD=950 mpu, US=2000 micro-pu/ciclo, UX=30000 mV e UC=6000 mA.
+# Non inviare UE/UH/UF, comandi diagnostici o comandi WPT in questa fase.
 
 # FASE S2 - dopo MANUAL/SOURCE VEHICLE e con STATION=INIT_LOAD
 INITOK

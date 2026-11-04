@@ -637,6 +637,26 @@ CQ?
 SMTHR?
 ```
 
+### Ordine vincolante dei primi campi `UQ,1`
+
+`UQ?` restituisce una riga compatta non auto-descrittiva. Non dedurre mai il
+significato di un campo dal suo valore numerico. Dopo il prefisso `UQ,1`, i
+primi sette campi sono, nell'ordine:
+
+| Posizione | Campo | Unita' / significato |
+|---:|---|---|
+| 1 | `SyntheticTestEnable` | boolean |
+| 2 | `SignalValidMask` | bit mask |
+| 3 | `SignalMissingMask` | bit mask; ad esempio `2016` non e' una tensione |
+| 4 | `VDC_mV` | tensione DCLINK usata da UniPD |
+| 5 | `VBAT_effective_mV` | VBAT usata da UniPD; puo' essere virtuale/override |
+| 6 | `VBAT_ADC_raw` | conteggio ADC VIN |
+| 7 | `VBAT_sensed_mV` | conversione fisica VIN/VBAT da ADC |
+
+Per validare la catena fisica VIN usare esclusivamente `VBAT_sensed_mV`
+(e, come controllo, `VBAT_ADC_raw`); non usare `VDC_mV` ne'
+`VBAT_effective_mV` quando un profilo puo' applicare un override.
+
 ### Calibrazioni dell'asset corrente
 
 Le catene di misura fisiche dell'asset corrente (VDC/VBAT, correnti di ramo

@@ -314,6 +314,63 @@ void UNIPD_applyStandardSourceBbcProfile(void)
     UNIPD_resetControlStatesCommand = 1U;
 }
 
+void UNIPD_applyStandardLoadBbcProfile(void)
+{
+    /*
+     * Replica il profilo operativo del comando UH=2 per il banco standard.
+     * Il profilo e' applicato soltanto dopo l'assegnazione runtime del ruolo
+     * LOAD: non dipende dalla scheda che ospita quel ruolo. Il consenso PWM
+     * BUCK resta responsabilita' della FSM in LOAD_ON.
+     */
+    UNIPD_bbcPowerOutputEnable = 0U;
+    TTPLPFC_BBC_disable();
+
+    UNIPD_bbcCurrentPolarityMask =
+            WLESS_PROFILE_LOAD_BBC_CURRENT_POLARITY_MASK;
+    UNIPD_bbcSyntheticInputs.i_coil_loc = 0.0f;
+    UNIPD_bbcSyntheticInputs.i_coil_rem_err = 0.0f;
+    UNIPD_bbcSyntheticInputs.i_coil_loc_rif = 0.0f;
+    UNIPD_bbcSyntheticInputs.v_dc_pbat_rif =
+            ((float)WLESS_PROFILE_LOAD_BBC_VDC_REF_MV) * 0.001f;
+    /* Il BUCK trasferisce DCLINK -> VBAT: riferimento corrente direzionale
+     * negativo, equivalente al percorso UART UH=2 seguito da UA=<mA>. */
+    UNIPD_bbcSyntheticInputs.i_bat_rif_max = 0.0f;
+    UNIPD_bbcSyntheticInputs.i_bat_rif_min =
+            -((float)WLESS_PROFILE_LOAD_BBC_CURRENT_LIMIT_MA) * 0.001f;
+    UNIPD_bbcSyntheticInputs.tx_1_rx_0 = 0U;
+
+    /* UH=2 conserva VDC, VBAT e correnti di ramo come misure fisiche. */
+    UNIPD_bbcDutyMappingMode = 0U;
+    UNIPD_bbcSyntheticValidMask = UNIPD_BBC_REQUIRED_SIGNAL_MASK;
+    UNIPD_bbcSyntheticOverrideMask =
+            UNIPD_BBC_REQUIRED_SIGNAL_MASK &
+            ~(UNIPD_BBC_SIGNAL_V_DC |
+              UNIPD_BBC_SIGNAL_V_BAT |
+              UNIPD_BBC_SIGNAL_I_L_A |
+              UNIPD_BBC_SIGNAL_I_L_B);
+    UNIPD_bbcSyntheticTestEnable = 1U;
+
+    UNIPD_bbcPowerOutputDutyMax_pu =
+            ((float)WLESS_PROFILE_LOAD_BBC_DUTY_MAX_MPU) * 0.001f;
+    UNIPD_bbcPowerOutputDutyRampEnable =
+            WLESS_PROFILE_BBC_DUTY_RAMP_ENABLE;
+    UNIPD_bbcPowerOutputDutyRampStep_pu =
+            ((float)WLESS_PROFILE_LOAD_BBC_DUTY_RAMP_UPU) * 0.000001f;
+    UNIPD_bbcVdcTripEnable = WLESS_PROFILE_BBC_VDC_TRIP_ENABLE;
+    UNIPD_bbcVdcTripThreshold_Volts =
+            ((float)WLESS_PROFILE_LOAD_BBC_VDC_TRIP_MV) * 0.001f;
+    UNIPD_bbcILTripEnable = WLESS_PROFILE_BBC_IL_TRIP_ENABLE;
+    UNIPD_bbcILTripThreshold_Amps =
+            ((float)WLESS_PROFILE_LOAD_BBC_IL_TRIP_MA) * 0.001f;
+    UNIPD_bbcILTripConfirmCycles =
+            WLESS_PROFILE_BBC_IL_TRIP_CONFIRM_CYCLES;
+
+    /* Vedi il profilo SOURCE: una volta installati i limiti LOAD, il reset
+     * e' ammesso dall'ISR soltanto se VDC e le due correnti sono nei limiti. */
+    UNIPD_bbcVdcTripResetCommand = 1U;
+    UNIPD_resetControlStatesCommand = 1U;
+}
+
 void UNIPD_armStandardSourceWptSeed(void)
 {
     /* Il seed e' monouso: va riarmato per ogni nuova sessione SOURCE. */

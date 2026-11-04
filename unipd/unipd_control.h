@@ -274,6 +274,7 @@ extern volatile UNIPD_BbcIntegrationInputs UNIPD_bbcSyntheticInputs;
 
 /* Profili standard applicati dalla FSM dopo l'assegnazione del ruolo. */
 void UNIPD_applyStandardSourceBbcProfile(void);
+void UNIPD_applyStandardLoadBbcProfile(void);
 void UNIPD_armStandardSourceWptSeed(void);
 extern volatile unsigned int UNIPD_bbcCaptureArmed;
 extern volatile unsigned int UNIPD_bbcCaptureFrozen;

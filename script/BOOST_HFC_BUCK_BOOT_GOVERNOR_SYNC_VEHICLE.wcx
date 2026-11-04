@@ -2,10 +2,10 @@
 # Profilo validato a banco con SMBOOTDUTY/SMBHD/SMBHH = 500/525/600 mpu.
 # Eseguire per fasi interleaved con BOOST_HFC_BUCK_BOOT_GOVERNOR_SYNC_STATION.wcx.
 # Ogni comando va inviato singolarmente. Gli override UART restano volatili;
-# il profilo standard FW1133 viene ripristinato a ogni power cycle.
+# il profilo standard FW1134 viene ripristinato a ogni power cycle.
 
 # FASE V1 - nessun comando UART di profilo.
-# A VIN OFF e DCLINK scarico, il firmware FW1133 applica il profilo SOURCE
+# A VIN OFF e DCLINK scarico, il firmware FW1134 applica il profilo SOURCE
 # e riarma il seed da 15 W entrando in SOURCE_PRECHARGE. L'integrazione WPT
 # viene abilitata dalla stessa transizione FSM. Non inviare UE/UH/UF, comandi
 # diagnostici o comandi WPT in questa fase.

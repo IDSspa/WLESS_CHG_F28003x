@@ -1202,6 +1202,7 @@ static void WLESS_SM_setPowerCommand(WLESS_SM_PowerCommand command)
          * Precharge LOAD: UniPD seleziona BUCK in base al ruolo locale. Il ponte
          * HFC resta disabilitato poiche' il rectifier LOAD e' passivo.
          */
+        UNIPD_applyStandardLoadBbcProfile();
         /* Il rectifier resta passivo: il BUCK non puo' partire in precharge. */
         WLESS_SM_prepareUnipdBbcPath(false);
     }
