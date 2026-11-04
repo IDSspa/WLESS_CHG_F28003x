@@ -8,6 +8,9 @@
 # A VIN OFF e DCLINK scarico, il firmware FW1134 applica il profilo LOAD
 # entrando in LOAD_PRECHARGE: UH=2, UP=0, UV=20000 mV, UA=4000 mA,
 # UD=950 mpu, US=2000 micro-pu/ciclo, UX=30000 mV e UC=6000 mA.
+# Il profilo del banco usa VBAT virtuale a 12 V; VDC e correnti BBC restano
+# fisici. Impostare WLESS_PROFILE_LOAD_BBC_VBAT_OVERRIDE_ENABLE=0U per
+# ricompilare con la misura VIN fisica.
 # Non inviare UE/UH/UF, comandi diagnostici o comandi WPT in questa fase.
 
 # FASE S2 - dopo MANUAL/SOURCE VEHICLE e con STATION=INIT_LOAD

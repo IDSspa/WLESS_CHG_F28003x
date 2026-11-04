@@ -327,6 +327,8 @@ void UNIPD_applyStandardLoadBbcProfile(void)
 
     UNIPD_bbcCurrentPolarityMask =
             WLESS_PROFILE_LOAD_BBC_CURRENT_POLARITY_MASK;
+    UNIPD_bbcSyntheticInputs.v_bat =
+            ((float)WLESS_PROFILE_LOAD_BBC_VBAT_DIAG_MV) * 0.001f;
     UNIPD_bbcSyntheticInputs.i_coil_loc = 0.0f;
     UNIPD_bbcSyntheticInputs.i_coil_rem_err = 0.0f;
     UNIPD_bbcSyntheticInputs.i_coil_loc_rif = 0.0f;
@@ -339,15 +341,18 @@ void UNIPD_applyStandardLoadBbcProfile(void)
             -((float)WLESS_PROFILE_LOAD_BBC_CURRENT_LIMIT_MA) * 0.001f;
     UNIPD_bbcSyntheticInputs.tx_1_rx_0 = 0U;
 
-    /* UH=2 conserva VDC, VBAT e correnti di ramo come misure fisiche. */
+    /* UH=2 conserva VDC e correnti di ramo come misure fisiche.  VBAT puo'
+     * essere virtualizzata esclusivamente dal flag di profilo del banco. */
     UNIPD_bbcDutyMappingMode = 0U;
     UNIPD_bbcSyntheticValidMask = UNIPD_BBC_REQUIRED_SIGNAL_MASK;
     UNIPD_bbcSyntheticOverrideMask =
             UNIPD_BBC_REQUIRED_SIGNAL_MASK &
             ~(UNIPD_BBC_SIGNAL_V_DC |
-              UNIPD_BBC_SIGNAL_V_BAT |
               UNIPD_BBC_SIGNAL_I_L_A |
               UNIPD_BBC_SIGNAL_I_L_B);
+#if WLESS_PROFILE_LOAD_BBC_VBAT_OVERRIDE_ENABLE == 0U
+    UNIPD_bbcSyntheticOverrideMask &= ~UNIPD_BBC_SIGNAL_V_BAT;
+#endif
     UNIPD_bbcSyntheticTestEnable = 1U;
 
     UNIPD_bbcPowerOutputDutyMax_pu =

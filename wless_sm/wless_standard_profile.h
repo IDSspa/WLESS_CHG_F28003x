@@ -55,12 +55,14 @@
 #define WLESS_PROFILE_SOURCE_BBC_IL_TRIP_MA        10000U     /* mA, per ramo */
 #define WLESS_PROFILE_SOURCE_BBC_DUTY_MAX_MPU        950U     /* milli-pu */
 #define WLESS_PROFILE_SOURCE_BBC_DUTY_RAMP_UPU       500U     /* micro-pu/ciclo */
-/* Mantiene VBAT virtuale a 12 V nel profilo BOOST del banco; VDC e correnti
- * di ramo restano sempre fisici. */
+/* Override VBAT del SOURCE per il banco a 12 V.  A 1 UniPD usa il valore
+ * diagnostico sopra; a 0 conserva la misura ADC fisica VIN/VBAT.  VDC e
+ * correnti di ramo restano sempre fisici in entrambe le configurazioni. */
 #define WLESS_PROFILE_SOURCE_BBC_VBAT_OVERRIDE_ENABLE  1U     /* boolean */
 
 /* Profilo BBC applicabile soltanto dopo l'assegnazione del ruolo LOAD. */
 #define WLESS_PROFILE_LOAD_BBC_HYBRID_MODE             2U     /* UH */
+#define WLESS_PROFILE_LOAD_BBC_VBAT_DIAG_MV        12000U     /* mV */
 #define WLESS_PROFILE_LOAD_BBC_CURRENT_POLARITY_MASK   0U     /* UP */
 #define WLESS_PROFILE_LOAD_BBC_VDC_REF_MV          20000U     /* mV */
 #define WLESS_PROFILE_LOAD_BBC_CURRENT_LIMIT_MA     4000U     /* mA */
@@ -68,6 +70,10 @@
 #define WLESS_PROFILE_LOAD_BBC_IL_TRIP_MA           6000U     /* mA, per ramo */
 #define WLESS_PROFILE_LOAD_BBC_DUTY_MAX_MPU          950U     /* milli-pu */
 #define WLESS_PROFILE_LOAD_BBC_DUTY_RAMP_UPU        2000U     /* micro-pu/ciclo */
+/* Override VBAT del LOAD per il banco a 12 V.  A 1 UniPD usa il valore
+ * diagnostico sopra; a 0 conserva la misura ADC fisica VIN/VBAT.  VDC e
+ * correnti di ramo restano sempre fisici in entrambe le configurazioni. */
+#define WLESS_PROFILE_LOAD_BBC_VBAT_OVERRIDE_ENABLE    1U     /* boolean */
 
 /* Protezione BBC comune ai due profili di ruolo. */
 #define WLESS_PROFILE_BBC_IL_TRIP_CONFIRM_CYCLES      22U     /* cicli ISR */
