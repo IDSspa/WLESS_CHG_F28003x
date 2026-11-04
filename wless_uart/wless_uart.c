@@ -6,6 +6,7 @@
 #include "ring_buffer.h"
 #include "wless_uart.h"
 #include "wless_sm/wless_sm.h"
+#include "wless_sm/wless_standard_profile.h"
 #include "wless_radio/wless_nrf24.h"
 #include "unipd/unipd_control.h"
 #include "ttplpfc/ttplpfc.h"
@@ -14,7 +15,7 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1132;
+const int FIRMWARE_RELEASE = 1133;
 
 /*
  * UART power-command envelope.  These values mirror the native UniPD / BBC
@@ -111,15 +112,20 @@ static uint32_t WLESS_UART_iBat;
 static uint32_t WLESS_UART_iCoil;
 static uint32_t WLESS_UART_unipdTest;
 static uint32_t WLESS_UART_unipdMap;
-static uint32_t WLESS_UART_unipdDutyMaxMilli = 350U;
+static uint32_t WLESS_UART_unipdDutyMaxMilli =
+        WLESS_PROFILE_BBC_SAFE_DUTY_MAX_MPU;
 static uint32_t WLESS_UART_unipdVdcRef;
-static uint32_t WLESS_UART_unipdVdcRefConfig = 7U;
+static uint32_t WLESS_UART_unipdVdcRefConfig =
+        (WLESS_PROFILE_BBC_SAFE_VDC_REF_MV + 500U) / 1000U;
 static uint32_t WLESS_UART_unipdVdcRefMilli;
-static uint32_t WLESS_UART_unipdVdcRefMilliConfig = 7000UL;
+static uint32_t WLESS_UART_unipdVdcRefMilliConfig =
+        WLESS_PROFILE_BBC_SAFE_VDC_REF_MV;
 static uint32_t WLESS_UART_unipdIBatMaxMilli;
-static uint32_t WLESS_UART_unipdIBatMaxMilliConfig = 200U;
+static uint32_t WLESS_UART_unipdIBatMaxMilliConfig =
+        WLESS_PROFILE_BBC_SAFE_CURRENT_LIMIT_MA;
 static uint32_t WLESS_UART_unipdVBatMilli;
-static uint32_t WLESS_UART_unipdVBatMilliConfig = 6000U;
+static uint32_t WLESS_UART_unipdVBatMilliConfig =
+        WLESS_PROFILE_BBC_SAFE_VBAT_MV;
 static uint32_t WLESS_UART_unipdVdcTripMilli;
 static uint32_t WLESS_UART_unipdILTripMilli;
 static uint32_t WLESS_UART_unipdILTripCycles;
@@ -129,7 +135,8 @@ static uint32_t WLESS_UART_unipdHybrid;
 static uint32_t WLESS_UART_unipdEnable;
 static uint32_t WLESS_UART_unipdILTestMilli;
 static uint32_t WLESS_UART_unipdOpenLoopBoost;
-static uint32_t WLESS_UART_unipdRampStepMicro;
+static uint32_t WLESS_UART_unipdRampStepMicro =
+        WLESS_PROFILE_BBC_SAFE_DUTY_RAMP_UPU;
 static uint32_t WLESS_UART_unipdHybridActive;
 
 volatile uint32_t WLESS_UART_rxByteCount;

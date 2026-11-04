@@ -2,6 +2,7 @@
 #include "clllc.h"
 #include "ttplpfc.h"
 #include "wless_sm/wless_sm.h"
+#include "wless_sm/wless_standard_profile.h"
 #include "wless_radio/wless_nrf24.h"
 
 #define UNIPD_V_BAT_MIN_ALG        (37.5f)
@@ -69,7 +70,8 @@ volatile float UNIPD_vBatMaxAlg_Volts = UNIPD_V_BAT_MAX_ALG;
 volatile float UNIPD_vDcMinAlg_Volts = UNIPD_V_DC_MIN_TEST_ALG;
 volatile float UNIPD_vDcMaxAlg_Volts = UNIPD_V_DC_MAX_ALG;
 volatile float UNIPD_vdcControllerGainScale = 1.0f;
-volatile unsigned int UNIPD_bbcCurrentPolarityMask;
+volatile unsigned int UNIPD_bbcCurrentPolarityMask =
+        WLESS_PROFILE_BBC_CURRENT_POLARITY_MASK;
 volatile float UNIPD_bbcILRawA_Amps;
 volatile float UNIPD_bbcILRawB_Amps;
 volatile unsigned int UNIPD_bbcPowerOutputEnable;
@@ -79,29 +81,37 @@ volatile unsigned int UNIPD_bbcBootstrapVdcReferenceLimitEnable;
 volatile float UNIPD_bbcBootstrapVdcReferenceLimit_Volts;
 volatile unsigned int UNIPD_bbcBootstrapDutyLimitEnable;
 volatile float UNIPD_bbcBootstrapDutyLimit_pu;
-volatile float UNIPD_bbcPowerOutputDutyMax_pu = 0.35f;
+volatile float UNIPD_bbcPowerOutputDutyMax_pu =
+        ((float)WLESS_PROFILE_BBC_SAFE_DUTY_MAX_MPU) * 0.001f;
 volatile unsigned int UNIPD_bbcDutyMappingMode = 1U;
 volatile float UNIPD_bbcMappedDutyA_pu;
 volatile float UNIPD_bbcMappedDutyB_pu;
 volatile float UNIPD_bbcAppliedDutyA_pu;
 volatile float UNIPD_bbcAppliedDutyB_pu;
-volatile unsigned int UNIPD_bbcPowerOutputDutyRampEnable = 1U;
-volatile float UNIPD_bbcPowerOutputDutyRampStep_pu = 0.0005f;
+volatile unsigned int UNIPD_bbcPowerOutputDutyRampEnable =
+        WLESS_PROFILE_BBC_DUTY_RAMP_ENABLE;
+volatile float UNIPD_bbcPowerOutputDutyRampStep_pu =
+        ((float)WLESS_PROFILE_BBC_SAFE_DUTY_RAMP_UPU) * 0.000001f;
 volatile float UNIPD_bbcRampedDutyA_pu;
 volatile float UNIPD_bbcRampedDutyB_pu;
 volatile unsigned int UNIPD_resetControlStatesCommand;
-volatile unsigned int UNIPD_bbcVdcTripEnable = 1U;
-volatile float UNIPD_bbcVdcTripThreshold_Volts = 10.0f;
+volatile unsigned int UNIPD_bbcVdcTripEnable =
+        WLESS_PROFILE_BBC_VDC_TRIP_ENABLE;
+volatile float UNIPD_bbcVdcTripThreshold_Volts =
+        ((float)WLESS_PROFILE_BBC_SAFE_VDC_TRIP_MV) * 0.001f;
 volatile unsigned int UNIPD_bbcVdcTripLatched;
 volatile float UNIPD_bbcVdcTripCapture_Volts;
 volatile unsigned int UNIPD_bbcVdcTripResetCommand;
-volatile unsigned int UNIPD_bbcILTripEnable = 1U;
-volatile float UNIPD_bbcILTripThreshold_Amps = 0.75f;
+volatile unsigned int UNIPD_bbcILTripEnable =
+        WLESS_PROFILE_BBC_IL_TRIP_ENABLE;
+volatile float UNIPD_bbcILTripThreshold_Amps =
+        ((float)WLESS_PROFILE_BBC_SAFE_IL_TRIP_MA) * 0.001f;
 volatile unsigned int UNIPD_bbcILTripLatched;
 volatile float UNIPD_bbcILTripCaptureA_Amps;
 volatile float UNIPD_bbcILTripCaptureB_Amps;
 static unsigned int UNIPD_bbcILTripConfirmCount;
-volatile unsigned int UNIPD_bbcILTripConfirmCycles = 22U;
+volatile unsigned int UNIPD_bbcILTripConfirmCycles =
+        WLESS_PROFILE_BBC_IL_TRIP_CONFIRM_CYCLES;
 volatile float UNIPD_bbcDebugILerrA;
 volatile float UNIPD_bbcDebugILerrB;
 volatile float UNIPD_bbcDebugVLrifMin;
@@ -164,9 +174,12 @@ static void unipd_latchWptHfcFaultSnapshot(void);
 static void unipd_trackBoostCoilVoltageFromAppliedDuty(void);
 
 volatile unsigned int UNIPD_wptIntegrationEnable;
-volatile float UNIPD_wptVdcSourceRef_Volts = 12.0f;
-volatile float UNIPD_wptVdcLoadRef_Volts = 12.0f;
-volatile float UNIPD_wptCoilCurrentMax_Amps = UNIPD_WPT_COIL_CURRENT_MAX_ALG;
+volatile float UNIPD_wptVdcSourceRef_Volts =
+        WLESS_PROFILE_WPT_VDC_SOURCE_REF_V;
+volatile float UNIPD_wptVdcLoadRef_Volts =
+        WLESS_PROFILE_WPT_VDC_LOAD_REF_V;
+volatile float UNIPD_wptCoilCurrentMax_Amps =
+        WLESS_PROFILE_WPT_COIL_CURRENT_MAX_A;
 volatile float UNIPD_wptCoilCurrentMin_Amps;
 volatile float UNIPD_wptTxPowerLimit_Watts;
 volatile float UNIPD_wptRemotePowerLimit_Watts;
@@ -187,7 +200,8 @@ volatile float UNIPD_wptLocalCoilUsed_Amps;
  * Default nominale: conserva il riferimento UniPD firmato. Il clamp legacy
  * resta disponibile esclusivamente come opzione diagnostica via UART.
  */
-volatile unsigned int UNIPD_wptHfcLegacyVacClampEnable = 0U;
+volatile unsigned int UNIPD_wptHfcLegacyVacClampEnable =
+        WLESS_PROFILE_WPT_PHASE_CLAMP_ENABLE;
 volatile unsigned int UNIPD_wptHfcActuatorEnable;
 volatile unsigned int UNIPD_wptHfcActuatorFault;
 volatile unsigned int UNIPD_wptHfcManualPhaseEnable;
@@ -195,12 +209,14 @@ volatile float UNIPD_wptHfcManualPhase_pu = 0.25f;
 /* 0 conserva il comando UniPD con segno; 1 seleziona la mappatura abs() precedente. */
 volatile unsigned int UNIPD_wptHfcPhaseMapInvert = 0U;
 volatile uint32_t UNIPD_wptHfcRemoteRoleInvalidCycles;
-volatile float UNIPD_wptHfcPhaseMax_pu = 0.005f;
+volatile float UNIPD_wptHfcPhaseMax_pu =
+        ((float)WLESS_PROFILE_WPT_HFC_PHASE_LIMIT_MPU) * 0.001f;
 /*
  * Default nominale: nessuno slew limiter aggiunto dal wrapper; HAPP segue
  * HREQ. La rampa resta configurabile via UART per sole prove comparative.
  */
-volatile float UNIPD_wptHfcPhaseRampStep_pu = 0.0f;
+volatile float UNIPD_wptHfcPhaseRampStep_pu =
+        ((float)WLESS_PROFILE_WPT_PHASE_RAMP_UPU) * 0.000001f;
 volatile float UNIPD_wptHfcPhaseRequested_pu;
 volatile float UNIPD_wptHfcPhaseApplied_pu;
 volatile float UNIPD_wptHfcAutoHardwarePhase_pu = 0.5f;
@@ -229,6 +245,81 @@ volatile float UNIPD_wptHfcFaultSnapshotPhaseApplied_pu;
 volatile float UNIPD_wptHfcFaultSnapshotHardwarePhase_pu;
 UNIPD_RxTransferredPowerControlOutput UNIPD_wptRxOutput;
 UNIPD_RemoteCoilLimitControlOutput UNIPD_wptHfcOutput;
+
+void UNIPD_applyStandardSourceBbcProfile(void)
+{
+    /*
+     * Replica il profilo operativo del comando UH=1 per il banco standard.
+     * Non arma il ponte; il consenso PWM resta responsabilita' della FSM.
+     */
+    UNIPD_bbcPowerOutputEnable = 0U;
+    TTPLPFC_BBC_disable();
+
+    UNIPD_bbcCurrentPolarityMask =
+            WLESS_PROFILE_BBC_CURRENT_POLARITY_MASK;
+    UNIPD_bbcSyntheticInputs.v_bat =
+            ((float)WLESS_PROFILE_SOURCE_BBC_VBAT_DIAG_MV) * 0.001f;
+    UNIPD_bbcSyntheticInputs.i_coil_loc = 0.0f;
+    UNIPD_bbcSyntheticInputs.i_coil_rem_err = 0.0f;
+    UNIPD_bbcSyntheticInputs.i_coil_loc_rif = 0.0f;
+    UNIPD_bbcSyntheticInputs.v_dc_pbat_rif =
+            (float)WLESS_PROFILE_SOURCE_BBC_VDC_REF_V;
+    UNIPD_bbcSyntheticInputs.i_bat_rif_max =
+            ((float)WLESS_PROFILE_SOURCE_BBC_CURRENT_LIMIT_MA) * 0.001f;
+    UNIPD_bbcSyntheticInputs.i_bat_rif_min = 0.0f;
+    UNIPD_bbcSyntheticInputs.tx_1_rx_0 = 1U;
+
+#if TTPLPFC_BBC_COMPLEMENTARY_PWM_ENABLE
+    UNIPD_bbcDutyMappingMode = 0U;
+#else
+    UNIPD_bbcDutyMappingMode = 1U;
+#endif
+    UNIPD_bbcSyntheticValidMask = UNIPD_BBC_REQUIRED_SIGNAL_MASK;
+    UNIPD_bbcSyntheticOverrideMask =
+            UNIPD_BBC_REQUIRED_SIGNAL_MASK &
+            ~(UNIPD_BBC_SIGNAL_V_DC |
+              UNIPD_BBC_SIGNAL_I_L_A |
+              UNIPD_BBC_SIGNAL_I_L_B);
+#if WLESS_PROFILE_SOURCE_BBC_VBAT_OVERRIDE_ENABLE == 0U
+    UNIPD_bbcSyntheticOverrideMask &= ~UNIPD_BBC_SIGNAL_V_BAT;
+#endif
+    UNIPD_bbcSyntheticTestEnable = 1U;
+
+    UNIPD_bbcPowerOutputDutyMax_pu =
+            ((float)WLESS_PROFILE_SOURCE_BBC_DUTY_MAX_MPU) * 0.001f;
+    UNIPD_bbcPowerOutputDutyRampEnable =
+            WLESS_PROFILE_BBC_DUTY_RAMP_ENABLE;
+    UNIPD_bbcPowerOutputDutyRampStep_pu =
+            ((float)WLESS_PROFILE_SOURCE_BBC_DUTY_RAMP_UPU) * 0.000001f;
+    UNIPD_bbcVdcTripEnable = WLESS_PROFILE_BBC_VDC_TRIP_ENABLE;
+    UNIPD_bbcVdcTripThreshold_Volts =
+            (float)WLESS_PROFILE_SOURCE_BBC_VDC_TRIP_V;
+    UNIPD_bbcILTripEnable = WLESS_PROFILE_BBC_IL_TRIP_ENABLE;
+    UNIPD_bbcILTripThreshold_Amps =
+            ((float)WLESS_PROFILE_SOURCE_BBC_IL_TRIP_MA) * 0.001f;
+    UNIPD_bbcILTripConfirmCycles =
+            WLESS_PROFILE_BBC_IL_TRIP_CONFIRM_CYCLES;
+
+    /*
+     * A flash/reset starts from the conservative pre-role IL threshold.  The
+     * physical zero-current residual of a calibrated branch may legitimately
+     * exceed that temporary threshold and leave a sticky latch before SOURCE
+     * is selected.  This is the firmware equivalent of the historical
+     * SOURCE preamble "UC=10000; UF=1": request the reset only after the
+     * operational SOURCE limits above are installed.  The caller holds the
+     * BBC disabled, and the ISR still refuses the reset unless VDC and both
+     * branch currents are inside these active protection limits.
+     */
+    UNIPD_bbcVdcTripResetCommand = 1U;
+    UNIPD_resetControlStatesCommand = 1U;
+}
+
+void UNIPD_armStandardSourceWptSeed(void)
+{
+    /* Il seed e' monouso: va riarmato per ogni nuova sessione SOURCE. */
+    UNIPD_wptTxPowerSeed_Watts = WLESS_PROFILE_WPT_SOURCE_POWER_SEED_W;
+    UNIPD_wptTxPowerSeedPending = 1U;
+}
 
 static int16_t unipd_encodeSigned16(float value)
 {

@@ -34,6 +34,8 @@
 #define WLESS_SM_BUILD_VEHICLE          0
 #endif
 
+#include "wless_standard_profile.h"
+
 //
 // La demo nRF originale usa una base tempi a 1 kHz. Mantenere Timer1 libero per
 // il firmware TI e derivare la temporizzazione della state machine dalla sorgente
@@ -50,20 +52,20 @@
 #define WLESS_SM_CAPACITY_MIN_WH        960L
 #define WLESS_SM_CAPACITY_THRESHOLD_WH  2880L
 
-#define WLESS_SM_VBUS_MIN_V             50U
+#define WLESS_SM_VBUS_MIN_V             WLESS_PROFILE_FSM_VBUS_MIN_V
 /*
  * Soglie distinte dalla guardia FSM SMVBUS. Devono essere configurate per il
  * punto di prova prima di WPT; il LOAD richiede margine rispetto a VBAT BUCK.
  */
-#define WLESS_SM_BOOT_SOURCE_VBUS_MIN_V  50U
-#define WLESS_SM_BOOT_LOAD_VBUS_MIN_V    50U
+#define WLESS_SM_BOOT_SOURCE_VBUS_MIN_V  WLESS_PROFILE_SOURCE_BOOT_VBUS_MIN_V
+#define WLESS_SM_BOOT_LOAD_VBUS_MIN_V    WLESS_PROFILE_LOAD_BOOT_VBUS_MIN_V
 /*
  * Bootstrap HFC: l'inverter parte dal punto neutro (500 mpu) e si muove
  * lentamente verso la fase configurata con WPTHFCPH. Queste guardie sono
  * inferiori ai trip hardware e proteggono il transitorio di pre-carica.
  */
 #define WLESS_SM_BOOT_HFC_PHASE_START_MPU       500U
-#define WLESS_SM_BOOT_HFC_PHASE_TARGET_MPU      500U
+#define WLESS_SM_BOOT_HFC_PHASE_TARGET_MPU      WLESS_PROFILE_WPT_HFC_BOOT_PHASE_MPU
 #define WLESS_SM_BOOT_HFC_PHASE_STEP_MPU          5U
 /* 5 mpu ogni 100 ms: 500 -> 200 mpu richiede circa 6 s. */
 #define WLESS_SM_BOOT_HFC_PHASE_STEP_TICKS      100U
@@ -91,13 +93,14 @@
 #define WLESS_SM_BOOT_SOURCE_VBUS_HOLD_HYST_PERMILLE  100U
 /* Limite iniziale del solo duty BOOST. Il valore e' configurabile a runtime
  * tramite SMBOOTDUTY prima del run e non sostituisce UD. */
-#define WLESS_SM_BOOT_BBC_DUTY_MAX_MPU            150U
+#define WLESS_SM_BOOT_BBC_DUTY_MAX_MPU            WLESS_PROFILE_SOURCE_BOOT_DUTY_MAX_MPU
+#define WLESS_SM_BOOT_BBC_HFC_DUTY_MAX_MPU        WLESS_PROFILE_SOURCE_HFC_DUTY_MAX_MPU
 /*
  * Secondo ceiling BBC durante l'hand-off HFC. Il limite runtime SMBHD resta
  * il valore iniziale; SMBHH e' il valore massimo raggiungibile soltanto
  * insieme alla rampa del limite HFC. Non sostituisce il limite ordinario UD.
  */
-#define WLESS_SM_BOOT_BBC_HFC_HANDOFF_DUTY_MAX_MPU 500U
+#define WLESS_SM_BOOT_BBC_HFC_HANDOFF_DUTY_MAX_MPU WLESS_PROFILE_SOURCE_HANDOFF_DUTY_MAX_MPU
 /*
  * Dopo il completamento hand-off HFC il BOOST non passa direttamente dal
  * ceiling SMBHH al limite ordinario UD. Il cap viene aperto a piccoli passi
@@ -110,10 +113,14 @@
 /* Il BOOST non viene mai armato a VIN assente. Sul banco il percorso passivo
  * porta VDC SOURCE a circa 11,5 V con VIN=12 V; 10 V e' quindi un consenso
  * fisico affidabile prima di rilasciare il PWM. */
-#define WLESS_SM_BOOT_BBC_ARM_VBUS_MIN_V         10U        //TODO: da validare con il banco definitivo
-#define WLESS_SM_BOOT_LOAD_VBUS_MAX_V            30U        //TODO: da validare con il banco definitivo
-#define WLESS_SM_IBAT_MIN_MA            1U                  //TODO: da validare con il banco definitivo
-#define WLESS_SM_ICOIL_MIN_MA           1U                  //TODO: da validare con il banco definitivo
+#define WLESS_SM_BOOT_BBC_ARM_VBUS_MIN_V         WLESS_PROFILE_SOURCE_BBC_ARM_VBUS_MIN_V
+#define WLESS_SM_BOOT_LOAD_VBUS_MAX_V            WLESS_PROFILE_LOAD_BOOT_VBUS_MAX_V
+#define WLESS_SM_IBAT_MIN_MA                      WLESS_PROFILE_FSM_IBAT_MIN_MA
+#if WLESS_SM_BUILD_VEHICLE == 1
+#define WLESS_SM_ICOIL_MIN_MA                     WLESS_PROFILE_LOCAL_ICOIL_MIN_VEHICLE_MA
+#else
+#define WLESS_SM_ICOIL_MIN_MA                     WLESS_PROFILE_LOCAL_ICOIL_MIN_STATION_MA
+#endif
 
 // Valori ingegneristici iniziali; mantenerli configurabili fino alla validazione
 // con i sensori definitivi e la dinamica dello stadio di potenza.

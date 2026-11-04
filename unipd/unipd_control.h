@@ -271,6 +271,10 @@ extern volatile unsigned int UNIPD_bbcSyntheticTestEnable;
 extern volatile unsigned int UNIPD_bbcSyntheticValidMask;
 extern volatile unsigned int UNIPD_bbcSyntheticOverrideMask;
 extern volatile UNIPD_BbcIntegrationInputs UNIPD_bbcSyntheticInputs;
+
+/* Profili standard applicati dalla FSM dopo l'assegnazione del ruolo. */
+void UNIPD_applyStandardSourceBbcProfile(void);
+void UNIPD_armStandardSourceWptSeed(void);
 extern volatile unsigned int UNIPD_bbcCaptureArmed;
 extern volatile unsigned int UNIPD_bbcCaptureFrozen;
 extern volatile unsigned int UNIPD_bbcCaptureCount;

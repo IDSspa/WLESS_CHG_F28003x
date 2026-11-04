@@ -74,7 +74,7 @@ volatile WLESS_SM_OpMode WLESS_SM_opMode;
 volatile WLESS_SM_WptState WLESS_SM_wptState;
 volatile WLESS_SM_PowerCommand WLESS_SM_powerCommand;
 volatile WLESS_SM_BootSourceMode WLESS_SM_bootSourceMode =
-        WLESS_SM_BOOT_SOURCE_EXTERNAL;
+        WLESS_PROFILE_SOURCE_BOOT_MODE;
 
 volatile int16_t WLESS_SM_localEnergyEncoded;
 volatile int16_t WLESS_SM_remoteEnergyEncoded;
@@ -84,7 +84,8 @@ volatile uint16_t WLESS_SM_iCoil_mA;
 volatile uint16_t WLESS_SM_vBusMin_V = WLESS_SM_VBUS_MIN_V;
 volatile uint16_t WLESS_SM_bootSourceVBusMin_V =
         WLESS_SM_BOOT_SOURCE_VBUS_MIN_V;
-volatile uint16_t WLESS_SM_bootSourceVBusHoldMin_V;
+volatile uint16_t WLESS_SM_bootSourceVBusHoldMin_V =
+        WLESS_PROFILE_SOURCE_BOOT_VBUS_HOLD_MIN_V;
 volatile uint16_t WLESS_SM_bootLoadVBusMin_V =
         WLESS_SM_BOOT_LOAD_VBUS_MIN_V;
 volatile uint16_t WLESS_SM_bootBbcArmVBusMin_V =
@@ -92,13 +93,14 @@ volatile uint16_t WLESS_SM_bootBbcArmVBusMin_V =
 volatile uint16_t WLESS_SM_bootBbcDutyMax_mpu =
         WLESS_SM_BOOT_BBC_DUTY_MAX_MPU;
 volatile uint16_t WLESS_SM_bootBbcHfcDutyMax_mpu =
-        WLESS_SM_BOOT_BBC_DUTY_MAX_MPU;
+        WLESS_SM_BOOT_BBC_HFC_DUTY_MAX_MPU;
 volatile uint16_t WLESS_SM_bootBbcHfcHandoffDutyMax_mpu =
         WLESS_SM_BOOT_BBC_HFC_HANDOFF_DUTY_MAX_MPU;
 volatile uint16_t WLESS_SM_bootHfcTargetPhase_mpu =
         WLESS_SM_BOOT_HFC_PHASE_TARGET_MPU;
 /* Il default replica il limite UniPD storico; WPTHFCLIM lo sovrascrive. */
-volatile uint16_t WLESS_SM_bootHfcPhaseLimit_mpu = 5U;
+volatile uint16_t WLESS_SM_bootHfcPhaseLimit_mpu =
+        WLESS_PROFILE_WPT_HFC_PHASE_LIMIT_MPU;
 volatile uint16_t WLESS_SM_iBatMin_mA = WLESS_SM_IBAT_MIN_MA;
 volatile uint16_t WLESS_SM_iCoilMin_mA = WLESS_SM_ICOIL_MIN_MA;
 volatile int16_t WLESS_SM_powerToLoad;
@@ -1164,6 +1166,8 @@ static void WLESS_SM_setPowerCommand(WLESS_SM_PowerCommand command)
          * mantenendo HFC in trip. La FSM richiedera' SOURCE_ON solo dopo il
          * raggiungimento della propria condizione VBUS-ready.
          */
+        UNIPD_applyStandardSourceBbcProfile();
+        UNIPD_armStandardSourceWptSeed();
         WLESS_SM_prepareUnipdBbcPath(
                 WLESS_SM_bootSourceMode == WLESS_SM_BOOT_SOURCE_BOOST);
     }
@@ -1257,22 +1261,23 @@ void WLESS_SM_init(void)
     WLESS_SM_opMode = WLESS_SM_MODE_AUTO;
     WLESS_SM_wptState = WLESS_SM_WPT_STOP;
     WLESS_SM_powerCommand = WLESS_SM_POWER_CMD_OFF;
-    WLESS_SM_bootSourceMode = WLESS_SM_BOOT_SOURCE_EXTERNAL;
+    WLESS_SM_bootSourceMode = WLESS_PROFILE_SOURCE_BOOT_MODE;
     WLESS_SM_localEnergyEncoded = 0;
     WLESS_SM_remoteEnergyEncoded = 0;
     WLESS_SM_vBus_V = 0U;
     WLESS_SM_iBat_mA = 0U;
     WLESS_SM_iCoil_mA = 0U;
     WLESS_SM_bootSourceVBusMin_V = WLESS_SM_BOOT_SOURCE_VBUS_MIN_V;
-    WLESS_SM_bootSourceVBusHoldMin_V = 0U;
+    WLESS_SM_bootSourceVBusHoldMin_V =
+            WLESS_PROFILE_SOURCE_BOOT_VBUS_HOLD_MIN_V;
     WLESS_SM_bootLoadVBusMin_V = WLESS_SM_BOOT_LOAD_VBUS_MIN_V;
     WLESS_SM_bootBbcArmVBusMin_V = WLESS_SM_BOOT_BBC_ARM_VBUS_MIN_V;
     WLESS_SM_bootBbcDutyMax_mpu = WLESS_SM_BOOT_BBC_DUTY_MAX_MPU;
-    WLESS_SM_bootBbcHfcDutyMax_mpu = WLESS_SM_BOOT_BBC_DUTY_MAX_MPU;
+    WLESS_SM_bootBbcHfcDutyMax_mpu = WLESS_SM_BOOT_BBC_HFC_DUTY_MAX_MPU;
     WLESS_SM_bootBbcHfcHandoffDutyMax_mpu =
             WLESS_SM_BOOT_BBC_HFC_HANDOFF_DUTY_MAX_MPU;
     WLESS_SM_bootHfcTargetPhase_mpu = WLESS_SM_BOOT_HFC_PHASE_TARGET_MPU;
-    WLESS_SM_bootHfcPhaseLimit_mpu = 5U;
+    WLESS_SM_bootHfcPhaseLimit_mpu = WLESS_PROFILE_WPT_HFC_PHASE_LIMIT_MPU;
     WLESS_SM_bootstrapStepPending = 0U;
     WLESS_SM_bootHfcSoftCurrentTrip = 0U;
     WLESS_SM_bootLoadOverVoltage = 0U;
