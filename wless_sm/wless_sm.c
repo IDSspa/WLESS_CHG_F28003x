@@ -2094,7 +2094,8 @@ static void WLESS_SM_runStationStep(void)
 
         case WLESS_SM_STATE_PRECHARGE_SOURCE:
             if(WLESS_SM_radioLinkKo() ||
-               (WLESS_SM_remoteAbort == WLESS_SM_ABORT_ENABLED))
+               (WLESS_SM_remoteAbort == WLESS_SM_ABORT_ENABLED) ||
+               (WLESS_SM_runWptDecision() == WLESS_SM_WPT_STOP))
             {
                 WLESS_SM_localCtrlState = WLESS_SM_CTRL_WPTOFF;
                 WLESS_SM_resetLocalExchange();
@@ -2125,6 +2126,7 @@ static void WLESS_SM_runStationStep(void)
 #if WLESS_SM_POWER_CONTROL_ENABLE == 1
         case WLESS_SM_STATE_HFC_BOOT_SOURCE:
             if(WLESS_SM_radioLinkKo() ||
+                (WLESS_SM_runWptDecision() == WLESS_SM_WPT_STOP) ||
                 (WLESS_SM_remoteCtrlState == WLESS_SM_CTRL_WPTOFF) ||
                 (WLESS_SM_remoteAbort == WLESS_SM_ABORT_ENABLED) ||
                 (WLESS_SM_bootHfcSoftCurrentTrip != 0U))
@@ -2147,6 +2149,7 @@ static void WLESS_SM_runStationStep(void)
 
         case WLESS_SM_STATE_HFC_HANDOFF_SOURCE:
             if(WLESS_SM_radioLinkKo() ||
+               (WLESS_SM_runWptDecision() == WLESS_SM_WPT_STOP) ||
                (WLESS_SM_remoteCtrlState == WLESS_SM_CTRL_WPTOFF) ||
                (WLESS_SM_remoteAbort == WLESS_SM_ABORT_ENABLED))
             {
@@ -2227,6 +2230,7 @@ static void WLESS_SM_runStationStep(void)
 
         case WLESS_SM_STATE_SOURCE_ON:
             if(WLESS_SM_radioLinkKo() ||
+               (WLESS_SM_runWptDecision() == WLESS_SM_WPT_STOP) ||
                (WLESS_SM_remoteCtrlState == WLESS_SM_CTRL_WPTOFF) ||
                (WLESS_SM_remoteAbort == WLESS_SM_ABORT_ENABLED))
             {
