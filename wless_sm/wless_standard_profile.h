@@ -34,6 +34,9 @@
 
 /* SOURCE: bootstrap BOOST e hand-off HFC. */
 #define WLESS_PROFILE_SOURCE_BOOT_MODE                 1U     /* 1=BOOST */
+/* VDC fisico minimo che conferma il percorso statico VIN -> DCLINK prima
+ * dell'INITOK automatico SOURCE. */
+#define WLESS_PROFILE_SOURCE_INIT_VDC_MIN_MV        11500U     /* mV */
 #define WLESS_PROFILE_SOURCE_BOOT_VBUS_MIN_V          23U     /* V */
 #define WLESS_PROFILE_SOURCE_BOOT_VBUS_HOLD_MIN_V     14U     /* V */
 #define WLESS_PROFILE_SOURCE_BBC_ARM_VBUS_MIN_V       10U     /* V */

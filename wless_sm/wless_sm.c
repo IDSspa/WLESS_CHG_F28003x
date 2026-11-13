@@ -1227,6 +1227,44 @@ static void WLESS_SM_setPowerCommand(WLESS_SM_PowerCommand command)
 #endif
 }
 
+/*
+ * INITOK automatico usa soltanto condizioni gia' preparate dal profilo di
+ * ruolo. SOURCE arma il percorso ePWM statico, senza abilitare il BOOST
+ * regolato, e attende la conferma VDC fisica. LOAD applica il proprio
+ * profilo mantenendo BBC/HFC disabilitati: non ha una precharge passiva da
+ * attendere.
+ */
+static bool WLESS_SM_prepareAutomaticInit(WLESS_SM_Role role)
+{
+#if WLESS_SM_POWER_CONTROL_ENABLE == 1
+    if(role == WLESS_SM_ROLE_SOURCE)
+    {
+        if(WLESS_SM_powerCommand != WLESS_SM_POWER_CMD_SOURCE_PRECHARGE)
+        {
+            WLESS_SM_setPowerCommand(WLESS_SM_POWER_CMD_SOURCE_PRECHARGE);
+        }
+
+        return UNIPD_bbcInputs.v_dc >=
+                (((float)WLESS_PROFILE_SOURCE_INIT_VDC_MIN_MV) * 0.001f);
+    }
+
+    if(role == WLESS_SM_ROLE_LOAD)
+    {
+        if(WLESS_SM_powerCommand != WLESS_SM_POWER_CMD_LOAD_PRECHARGE)
+        {
+            WLESS_SM_setPowerCommand(WLESS_SM_POWER_CMD_LOAD_PRECHARGE);
+        }
+
+        return true;
+    }
+
+    return false;
+#else
+    (void)role;
+    return WLESS_SM_initOkCommand != 0U;
+#endif
+}
+
 #if WLESS_SM_BUILD_VEHICLE == 0
 static void WLESS_SM_resetLocalExchange(void)
 {
@@ -1540,7 +1578,7 @@ static void WLESS_SM_runVehicleStep(void)
             break;
 
         case WLESS_SM_STATE_INIT_SOURCE:
-            if(WLESS_SM_initOkCommand != 0U)
+            if(WLESS_SM_prepareAutomaticInit(WLESS_SM_ROLE_SOURCE))
             {
                 WLESS_SM_initOkCommand = 0U;
                 WLESS_SM_localRole = WLESS_SM_ROLE_SOURCE;
@@ -1553,7 +1591,7 @@ static void WLESS_SM_runVehicleStep(void)
             break;
 
         case WLESS_SM_STATE_INIT_LOAD:
-            if(WLESS_SM_initOkCommand != 0U)
+            if(WLESS_SM_prepareAutomaticInit(WLESS_SM_ROLE_LOAD))
             {
                 WLESS_SM_initOkCommand = 0U;
                 WLESS_SM_localRole = WLESS_SM_ROLE_LOAD;
@@ -1589,7 +1627,11 @@ static void WLESS_SM_runVehicleStep(void)
                 WLESS_SM_localAbort = WLESS_SM_ABORT_DISABLED;
                 WLESS_SM_bootSourceReadyTicks = 0U;
                 WLESS_SM_bootSourceReadyLatched = 0U;
-                WLESS_SM_setPowerCommand(WLESS_SM_POWER_CMD_SOURCE_PRECHARGE);
+                if(WLESS_SM_powerCommand != WLESS_SM_POWER_CMD_SOURCE_PRECHARGE)
+                {
+                    WLESS_SM_setPowerCommand(
+                            WLESS_SM_POWER_CMD_SOURCE_PRECHARGE);
+                }
                 WLESS_SM_state = WLESS_SM_STATE_PRECHARGE_SOURCE;
             }
             break;
@@ -1634,7 +1676,11 @@ static void WLESS_SM_runVehicleStep(void)
 #endif
                 WLESS_SM_powerToLoad = 0;
                 WLESS_SM_localAbort = WLESS_SM_ABORT_DISABLED;
-                WLESS_SM_setPowerCommand(WLESS_SM_POWER_CMD_LOAD_PRECHARGE);
+                if(WLESS_SM_powerCommand != WLESS_SM_POWER_CMD_LOAD_PRECHARGE)
+                {
+                    WLESS_SM_setPowerCommand(
+                            WLESS_SM_POWER_CMD_LOAD_PRECHARGE);
+                }
 #if WLESS_SM_POWER_CONTROL_ENABLE == 1
                 WLESS_SM_bootLoadOverVoltage = 0U;
                 WLESS_SM_state = WLESS_SM_STATE_WAIT_VBUS_LOAD;
@@ -2004,7 +2050,7 @@ static void WLESS_SM_runStationStep(void)
             break;
 
         case WLESS_SM_STATE_INIT_SOURCE:
-            if(WLESS_SM_initOkCommand != 0U)
+            if(WLESS_SM_prepareAutomaticInit(WLESS_SM_ROLE_SOURCE))
             {
                 WLESS_SM_initOkCommand = 0U;
                 WLESS_SM_localRole = WLESS_SM_ROLE_SOURCE;
@@ -2015,7 +2061,7 @@ static void WLESS_SM_runStationStep(void)
             break;
 
         case WLESS_SM_STATE_INIT_LOAD:
-            if(WLESS_SM_initOkCommand != 0U)
+            if(WLESS_SM_prepareAutomaticInit(WLESS_SM_ROLE_LOAD))
             {
                 WLESS_SM_initOkCommand = 0U;
                 WLESS_SM_localRole = WLESS_SM_ROLE_LOAD;
@@ -2044,7 +2090,11 @@ static void WLESS_SM_runStationStep(void)
                 WLESS_SM_resetLocalExchange();
                 WLESS_SM_bootSourceReadyTicks = 0U;
                 WLESS_SM_bootSourceReadyLatched = 0U;
-                WLESS_SM_setPowerCommand(WLESS_SM_POWER_CMD_SOURCE_PRECHARGE);
+                if(WLESS_SM_powerCommand != WLESS_SM_POWER_CMD_SOURCE_PRECHARGE)
+                {
+                    WLESS_SM_setPowerCommand(
+                            WLESS_SM_POWER_CMD_SOURCE_PRECHARGE);
+                }
                 WLESS_SM_state = WLESS_SM_STATE_PRECHARGE_SOURCE;
             }
             break;
@@ -2082,7 +2132,11 @@ static void WLESS_SM_runStationStep(void)
                 WLESS_SM_localCtrlState = WLESS_SM_CTRL_WPTON;
 #endif
                 WLESS_SM_resetLocalExchange();
-                WLESS_SM_setPowerCommand(WLESS_SM_POWER_CMD_LOAD_PRECHARGE);
+                if(WLESS_SM_powerCommand != WLESS_SM_POWER_CMD_LOAD_PRECHARGE)
+                {
+                    WLESS_SM_setPowerCommand(
+                            WLESS_SM_POWER_CMD_LOAD_PRECHARGE);
+                }
 #if WLESS_SM_POWER_CONTROL_ENABLE == 1
                 WLESS_SM_bootLoadOverVoltage = 0U;
                 WLESS_SM_state = WLESS_SM_STATE_WAIT_VBUS_LOAD;

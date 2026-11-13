@@ -2,22 +2,19 @@
 # Complementare a BOOST_HFC_BUCK_BOOT_GOVERNOR_SYNC_VEHICLE.wcx.
 # Il profilo 500/525/600 mpu e' configurato esclusivamente sulla VEHICLE.
 # Ogni comando va inviato singolarmente. Gli override UART restano volatili;
-# il profilo standard FW1134 viene ripristinato a ogni power cycle.
+# il profilo standard FW1135 viene ripristinato a ogni power cycle.
 
 # FASE S1 - nessun comando UART di profilo.
-# A VIN OFF e DCLINK scarico, il firmware FW1134 applica il profilo LOAD
-# entrando in LOAD_PRECHARGE: UH=2, UP=0, UV=20000 mV, UA=4000 mA,
+# Il firmware applica il profilo LOAD entrando in INIT_LOAD: UH=2, UP=0,
+# UV=20000 mV, UA=4000 mA,
 # UD=950 mpu, US=2000 micro-pu/ciclo, UX=30000 mV e UC=6000 mA.
 # Il profilo del banco usa VBAT virtuale a 12 V; VDC e correnti BBC restano
 # fisici. Impostare WLESS_PROFILE_LOAD_BBC_VBAT_OVERRIDE_ENABLE=0U per
 # ricompilare con la misura VIN fisica.
 # Non inviare UE/UH/UF, comandi diagnostici o comandi WPT in questa fase.
 
-# FASE S2 - dopo MANUAL/SOURCE VEHICLE e con STATION=INIT_LOAD
-INITOK
-# Attendere: STATION=WAIT_SOURCE.
-
-# FASE S3 - dopo INITOK VEHICLE: nessun comando UART sulla STATION.
+# FASE S2 - nessun comando UART sulla STATION.
+# INITOK viene pubblicato automaticamente dopo l'applicazione del profilo.
 # Il consenso WPT e' gia' attivato da LOAD_PRECHARGE; VIN ON viene richiesto
-# seguendo la FASE V4 del file VEHICLE. Dopo STOP VEHICLE, VIN OFF e attesa
+# seguendo la FASE V3 del file VEHICLE. Dopo STOP VEHICLE, VIN OFF e attesa
 # STANDBY/IDLE.

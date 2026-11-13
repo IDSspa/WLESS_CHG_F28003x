@@ -2,30 +2,25 @@
 # Profilo validato a banco con SMBOOTDUTY/SMBHD/SMBHH = 500/525/600 mpu.
 # Eseguire per fasi interleaved con BOOST_HFC_BUCK_BOOT_GOVERNOR_SYNC_STATION.wcx.
 # Ogni comando va inviato singolarmente. Gli override UART restano volatili;
-# il profilo standard FW1134 viene ripristinato a ogni power cycle.
+# il profilo standard FW1135 viene ripristinato a ogni power cycle.
 
 # FASE V1 - nessun comando UART di profilo.
-# A VIN OFF e DCLINK scarico, il firmware FW1134 applica il profilo SOURCE
-# e riarma il seed da 15 W entrando in SOURCE_PRECHARGE. L'integrazione WPT
-# viene abilitata dalla stessa transizione FSM. Non inviare UE/UH/UF, comandi
-# diagnostici o comandi WPT in questa fase.
+# Il profilo SOURCE viene applicato automaticamente entrando in INIT_SOURCE;
+# il precharge ePWM statico stabilisce il percorso VIN -> DCLINK senza
+# abilitare il BOOST regolato. Non inviare UE/UH/UF, comandi diagnostici o
+# comandi WPT in questa fase.
 
 # FASE V2 - dopo la configurazione STATION
 MANUAL
 @500
 SOURCE
-# Attendere: VEHICLE=INIT_SOURCE e STATION=INIT_LOAD.
+# Non inviare INITOK: SOURCE e LOAD lo pubblicano automaticamente quando
+# completano le rispettive inizializzazioni.
 
-# FASE V3 - dopo INITOK STATION e STATION=WAIT_SOURCE
-INITOK
-# Attendere: VEHICLE=PRECHARGE_SOURCE e radio OK.
-
-# FASE V4 - dopo PRECHARGE_SOURCE e PRECHARGE_LOAD: VIN ON.
+# FASE V3 - VIN ON dopo SOURCE.
+# Il SOURCE avanza automaticamente quando VDC fisico raggiunge 11,5 V; il
+# LOAD resta in attesa di WPTBOOT e non abilita il BUCK in INIT_LOAD.
 # Nessun comando UART durante il plateau.
 
-# FASE V5 - chiusura logica; poi VIN OFF e attesa STANDBY/IDLE
-UE=0
-@200
-WPTHFC=0
-@200
+# FASE V4 - chiusura logica; poi VIN OFF e attesa STANDBY/IDLE
 STOP

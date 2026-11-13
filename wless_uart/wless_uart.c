@@ -15,7 +15,7 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1134;
+const int FIRMWARE_RELEASE = 1135;
 
 /*
  * UART power-command envelope.  These values mirror the native UniPD / BBC
