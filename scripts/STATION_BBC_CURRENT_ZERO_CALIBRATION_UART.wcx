@@ -1,0 +1,28 @@
+# STATION — zero-calibrazione correnti BBC e persistenza flash
+#
+# Precondizioni obbligatorie:
+# - DCLINK LOAD OFF e scarico;
+# - VIN LOAD senza sorgente esterna; il carico elettronico, se collegato,
+#   non deve imporre corrente;
+# - HFC/WPT/FSM non usati e nessun PWM BBC attivo.
+#
+# Inviare ogni riga singolarmente e attendere la risposta.
+
+FW?
+ROLE?
+UE=0
+UB=0
+HFC=0
+WPTHFC=0
+WPT=0
+UQ?
+CQ?
+
+# Calibra gli offset zero dei due rami BBC in RAM.
+UF=2
+CQ?
+UQ?
+
+# Salva gli offset BBC attivi in flash e verifica source/sequence.
+CS
+CQ?

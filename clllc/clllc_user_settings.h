@@ -539,7 +539,10 @@
 // ECAP Temperature reading
 //
 #define CLLLC_TEMP_OVERSAMPLE 1024
-#define CLLLC_TEMP_CHAN 12
+/* The board uses mux selections 0..3 (T0..T7).  Selections 4 and 5 do not
+ * belong to the qualified thermal acquisition and would only consume the
+ * eCAP timeout path. */
+#define CLLLC_TEMP_CHAN 8
 
 #define CLLLC_GPIO_TEMP_MUX_OUT1 41
 #define CLLLC_GPIO_TEMP_MUX_OUT1_PIN_CONFIG GPIO_41_GPIO41//todo check all TEMP reading GPIOs

@@ -3,10 +3,18 @@
 
 #include <stdint.h>
 
-/* 3.3 V ADC, offset 120 mV e sensibilita' 573 mV/A: 5.5 A interi massimi. */
-#define WLESS_CONFIG_ITANK_LIMIT_MAX_MA 5500U
+/* Limiti della catena ADC ITANK_MOD, espressi in unita' fisiche. */
+#define WLESS_CONFIG_ITANK_ADC_FULL_SCALE_MV       3300U
+#define WLESS_CONFIG_ITANK_OFFSET_MAX_MV             500U
+/* 1 mV/A impedisce soltanto la divisione per zero; il controllo span ADC
+ * sottostante limita ogni combinazione sensibilita'/corrente non fisica. */
+#define WLESS_CONFIG_ITANK_SENSITIVITY_MIN_MV_A       1U
+#define WLESS_CONFIG_ITANK_SENSITIVITY_MAX_MV_A    1000U
+#define WLESS_CONFIG_ITANK_LIMIT_MAX_MA           37500U
 
-#define WLESS_CONFIG_SCHEMA_VERSION       1U
+/* Incrementare quando cambiano i default compilati: un record flash di schema
+ * precedente non deve prevalere sulla calibrazione associata alla nuova build. */
+#define WLESS_CONFIG_SCHEMA_VERSION       2U
 #define WLESS_CONFIG_SOURCE_DEFAULT       0U
 #define WLESS_CONFIG_SOURCE_FLASH_A       1U
 #define WLESS_CONFIG_SOURCE_FLASH_B       2U

@@ -7,6 +7,7 @@
 #include "clllc/clllc.h"
 #include "ttplpfc/ttplpfc.h"
 #include "unipd/unipd_control.h"
+#include "wless_sm/wless_sm_settings.h"
 
 #define WLESS_CONFIG_FLASH_A_ADDRESS       0x09E000UL
 #define WLESS_CONFIG_FLASH_B_ADDRESS       0x09F000UL
@@ -18,13 +19,33 @@
 #define WLESS_CONFIG_COMMIT_INDEX          32U
 #define WLESS_CONFIG_FLASH_TIMEOUT         2000000UL
 
-#define WLESS_CONFIG_DEFAULT_ITANK_OFFSET_MV       120U
-#define WLESS_CONFIG_DEFAULT_ITANK_SENS_MV_A       573U
-#define WLESS_CONFIG_DEFAULT_ITANK_LIMIT_MA        WLESS_CONFIG_ITANK_LIMIT_MAX_MA
-#define WLESS_CONFIG_DEFAULT_ILA_OFFSET_RAW        2048U
-#define WLESS_CONFIG_DEFAULT_ILB_OFFSET_RAW        2048U
-#define WLESS_CONFIG_DEFAULT_WPT_LOAD_OFFSET_MA    0U
+#define WLESS_CONFIG_DEFAULT_ITANK_SENS_MV_A \
+        WLESS_PROFILE_ITANK_SENS_MV_A
+#define WLESS_CONFIG_DEFAULT_ITANK_LIMIT_MA \
+        WLESS_PROFILE_ITANK_LIMIT_MA
 #define WLESS_CONFIG_WPT_LOAD_OFFSET_MAX_MA        5000U
+
+/* Il default e' associato alla scheda/controlCARD compilata, non al ruolo
+ * runtime che potra' assumere durante una sessione WPT. */
+#if WLESS_SM_BUILD_VEHICLE == 1
+#define WLESS_CONFIG_DEFAULT_ITANK_OFFSET_MV \
+        WLESS_PROFILE_VEHICLE_ITANK_OFFSET_MV
+#define WLESS_CONFIG_DEFAULT_ILA_OFFSET_RAW \
+        WLESS_PROFILE_VEHICLE_ILA_OFFSET_RAW
+#define WLESS_CONFIG_DEFAULT_ILB_OFFSET_RAW \
+        WLESS_PROFILE_VEHICLE_ILB_OFFSET_RAW
+#define WLESS_CONFIG_DEFAULT_WPT_LOAD_OFFSET_MA \
+        WLESS_PROFILE_VEHICLE_WPT_LOAD_OFFSET_MA
+#else
+#define WLESS_CONFIG_DEFAULT_ITANK_OFFSET_MV \
+        WLESS_PROFILE_STATION_ITANK_OFFSET_MV
+#define WLESS_CONFIG_DEFAULT_ILA_OFFSET_RAW \
+        WLESS_PROFILE_STATION_ILA_OFFSET_RAW
+#define WLESS_CONFIG_DEFAULT_ILB_OFFSET_RAW \
+        WLESS_PROFILE_STATION_ILB_OFFSET_RAW
+#define WLESS_CONFIG_DEFAULT_WPT_LOAD_OFFSET_MA \
+        WLESS_PROFILE_STATION_WPT_LOAD_OFFSET_MA
+#endif
 
 WLESS_Config WLESS_Config_active;
 WLESS_Config WLESS_Config_pending;
@@ -147,9 +168,13 @@ void WLESS_Config_loadDefaults(void)
 
 uint16_t WLESS_Config_validate(const WLESS_Config *config)
 {
-    if((config->iTankOffset_mV > 500U) ||
-       (config->iTankSensitivity_mV_A < 100U) ||
-       (config->iTankSensitivity_mV_A > 1000U) ||
+    uint32_t iTankLimitVoltage_mV;
+
+    if((config->iTankOffset_mV > WLESS_CONFIG_ITANK_OFFSET_MAX_MV) ||
+       (config->iTankSensitivity_mV_A <
+            WLESS_CONFIG_ITANK_SENSITIVITY_MIN_MV_A) ||
+       (config->iTankSensitivity_mV_A >
+            WLESS_CONFIG_ITANK_SENSITIVITY_MAX_MV_A) ||
        (config->iTankLimit_mA == 0U) ||
        (config->iTankLimit_mA > WLESS_CONFIG_ITANK_LIMIT_MAX_MA) ||
        (config->iLAOffsetRaw < 1500U) ||
@@ -158,6 +183,14 @@ uint16_t WLESS_Config_validate(const WLESS_Config *config)
         (config->iLBOffsetRaw > 2600U) ||
         (config->wptLoadCoilOffset_mA >
                 WLESS_CONFIG_WPT_LOAD_OFFSET_MAX_MA))
+    {
+        return 0U;
+    }
+    /* A Ilim il segnale ITANK_MOD deve rimanere nel campo dell'ADC. */
+    iTankLimitVoltage_mV = (uint32_t)config->iTankOffset_mV +
+            (((uint32_t)config->iTankSensitivity_mV_A *
+              (uint32_t)config->iTankLimit_mA + 999U) / 1000U);
+    if(iTankLimitVoltage_mV > WLESS_CONFIG_ITANK_ADC_FULL_SCALE_MV)
     {
         return 0U;
     }

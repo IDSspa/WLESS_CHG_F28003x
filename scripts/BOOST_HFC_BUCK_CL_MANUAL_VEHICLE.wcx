@@ -1,0 +1,57 @@
+# BOOST + HFC + BUCK closed-loop, VEHICLE / COM25
+# FW1097, VIN fisico 12 V / 10 A, DCLINK SOURCE e LOAD aperti,
+# carico elettronico CV=12 V su VIN LOAD. VIN deve restare OFF.
+#
+# ATTENZIONE: questo file e' volutamente diviso in fasi. Non eseguire tutto
+# in un solo invio: la sequenza e' interleaved con il file STATION.
+# Eseguire nell'ordine: VEHICLE A, STATION A, VEHICLE B, STATION B, VEHICLE C.
+
+# === FASE A: configurazione e ingresso INIT_SOURCE ===
+UE=0 @300
+HFC=0 @300
+WPTHFC=0 @300
+WPT=0 @300
+SMVBUS=5 @300
+SMICOIL=100 @300
+SMBOOTMODE=1 @300
+SMBOOTSRC=20 @300
+SMBOOTDUTY=150 @300
+WPTSRC=20000 @300
+WPTLOAD=20000 @300
+WPTIMAX=5000 @300
+WPTPLIMINIT=15 @300
+WPTHFCLIM=200 @300
+WPTHFCPH=400 @300
+WPTCLAMP=0 @300
+WPTHFCRAMP=0 @300
+UH=1 @300
+UW=12000 @300
+UR=24 @300
+UY=50 @300
+UA=10000 @300
+UC=10000 @300
+UN=22 @300
+UD=950 @300
+US=500 @300
+UF=1 @300
+SMTHR? @300
+SMBOOT? @300
+WPT? @300
+UQ? @300
+RADIO? @300
+MANUAL @500
+SOURCE @1000
+# Verificare: VEHICLE=INIT_SOURCE; quindi eseguire STATION FASE A.
+
+# === FASE B: consenso SOURCE, solo dopo STATION=WAIT_SOURCE ===
+INITOK @1000
+# Verificare: VEHICLE=PRECHARGE_SOURCE e RadioLink=OK.
+# Quindi eseguire STATION FASE B.
+
+# === FASE C: ultimo consenso WPT, solo dopo STATION WPT=1 ===
+WPT=1 @1000
+VARS? @300
+WPT? @300
+# Verificare: VEHICLE=PRECHARGE_SOURCE, WPTState=RUN, PSEEDP=1.
+# Solo allora VIN ON. Durante il plateau non inviare UART.
+# Per terminare: UE=0, poi WPTHFC=0, poi STOP; quindi VIN OFF.

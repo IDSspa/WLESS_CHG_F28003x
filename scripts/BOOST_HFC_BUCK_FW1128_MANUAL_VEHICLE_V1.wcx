@@ -1,0 +1,63 @@
+# BOOST+HFC+BUCK closed loop - profilo ripetibile FW1128
+# VEHICLE / COM25. Eseguire le FASI nell'ordine indicato insieme allo script STATION.
+# VIN OFF e bus scarichi durante V1-S1-V2-S2-V3-S3. Non eseguire l'intero file
+# come un singolo burst: fermarsi a ogni commento FASE e verificare lo stato richiesto.
+
+# FASE V1 - configurazione a VIN OFF, WPT fermo
+UE=0
+@200
+WPTHFC=0
+@200
+WPT=0
+@200
+SMVBUS=5
+@200
+SMICOIL=100
+@200
+SMBOOTMODE=1
+@200
+SMBOOTSRC=23
+@200
+SMBH=14
+@200
+SMBOOTDUTY=10
+@200
+SMBHD=150
+@200
+SMBHH=600
+@200
+WPTSRC=20000
+@200
+WPTLOAD=20000
+@200
+WPTIMAX=5000
+@200
+WPTPLIMINIT=15
+@200
+WPTHFCLIM=200
+@200
+WPTHFCPH=470
+@200
+WPTCLAMP=0
+@200
+WPTHFCRAMP=0
+@200
+UH=1
+@200
+UW=12000
+@200
+UR=24
+@200
+UY=50
+@200
+UA=10000
+@200
+UC=10000
+@200
+UN=22
+@200
+UD=950
+@200
+US=500
+@200
+UF=1

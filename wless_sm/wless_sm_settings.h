@@ -76,7 +76,8 @@
  */
 #define WLESS_SM_BOOT_HFC_HANDOFF_STEP_MPU       10U
 #define WLESS_SM_BOOT_HFC_HANDOFF_STEP_TICKS     50U
-#define WLESS_SM_BOOT_HFC_SOFT_COIL_LIMIT_MA   4500U
+#define WLESS_SM_BOOT_HFC_SOFT_COIL_LIMIT_MA \
+        WLESS_PROFILE_SOURCE_HFC_SOFT_COIL_LIMIT_MA
 /*
  * Il BOOST deve sostenere il proprio DCLINK prima che l'HFC inizi a sottrarre
  * energia. La conferma evita che un superamento transitorio di SMBOOTSRC

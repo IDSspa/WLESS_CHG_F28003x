@@ -1,0 +1,45 @@
+# BOOST sincrono open-loop — VEHICLE / SOURCE
+# Firmware sperimentale del worktree boost-sync-openloop.
+#
+# Setup esterno prima della sequenza:
+# - VIN SOURCE: PSU 12 V, limite scelto per il punto, OFF;
+# - DCLINK SOURCE: carico elettronico CR 8 ohm, ON;
+# - DCLINK LOAD e VIN LOAD: aperti;
+# - HFC, WPT e FSM distribuita non sono usati.
+#
+# Inviare un solo comando per volta e attendere la risposta.  I valori UD
+# indicati nelle campagne sono 100, 200, 300, 400, 450, 500, 525 e 550.
+
+FW?
+ROLE?
+UE=0
+UB=0
+HFC=0
+WPTHFC=0
+WPT=0
+UF=1
+UY=50
+UC=5000
+UN=22
+UD=<DLOW_MPU>
+US=10
+UQ?
+
+# UB=3: precharge ePWM statico, high-side ON e low-side OFF.
+UB=3
+
+# Operatore: VIN ON. Attendere la lettura di precharge (~11,9 V su DCLINK
+# con VIN 12 V e CR 8 ohm) prima di procedere.
+
+CAP=1
+
+# UB=1: OST, AQ/dead-band complementare, quindi rampa Dlow 0 -> UD.
+UB=1
+
+# Operatore: nessun altro comando UART per 5...10 s; registrare VIN, VDC e
+# corrente del carico. Con potenza ancora attiva, congelare subito il capture.
+CAP=0
+CAPD?
+UB=0
+
+# Operatore: VIN OFF. Il CR 8 ohm scarica il DCLINK.

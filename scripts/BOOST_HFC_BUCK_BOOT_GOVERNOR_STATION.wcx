@@ -1,0 +1,50 @@
+# BOOST+HFC+BUCK closed loop, governor bootstrap: STATION / COM26.
+# Profilo complementare al VEHICLE: SMBOOTDUTY=100, SMBHD=150, SMBHH=600,
+# WPTHFCLIM=400 e WPTHFCPH=470 sono configurati esclusivamente sulla VEHICLE.
+# Eseguire per fasi interleaved con BOOST_HFC_BUCK_BOOT_GOVERNOR_VEHICLE.wcx.
+# Non inviare comandi UART dopo VIN ON. I valori sono volatili dopo power cycle.
+
+# FASE S1 - configurazione a VIN OFF, DCLINK scarico, WPT fermo
+SMVBUS=5
+@200
+SMICOIL=400
+@200
+SMBOOTLOAD=15
+@200
+WPTSRC=20000
+@200
+WPTLOAD=20000
+@200
+WPTIMAX=5000
+@200
+UE=0
+@200
+UH=2
+@200
+UP=0
+@200
+UV=20000
+@200
+UA=4000
+@200
+UD=950
+@200
+US=2000
+@200
+UX=30000
+@200
+UC=6000
+@200
+UN=22
+@200
+UF=1
+
+# FASE S2 - dopo MANUAL e SOURCE sulla VEHICLE, con STATION=INIT_LOAD
+INITOK
+# Fermarsi: attendere STATION=WAIT_SOURCE prima di INITOK sulla VEHICLE.
+
+# FASE S3 - dopo PRECHARGE_SOURCE sulla VEHICLE; STATION ancora WAIT_SOURCE
+WPT=1
+# Fermarsi: la VEHICLE esegue WPT=1; poi VIN ON senza ulteriori UART.
+# La STATION puo' rimanere WAIT_SOURCE: nel bootstrap transisce solo quando
+# riceve WPTBOOT dal SOURCE, dopo il consenso VDC SOURCE.

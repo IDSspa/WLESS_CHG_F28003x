@@ -1,0 +1,42 @@
+# BOOST + HFC + BUCK closed-loop, STATION / COM26
+# Da usare insieme a BOOST_HFC_BUCK_CL_MANUAL_VEHICLE.wcx.
+# VIN resta OFF fino al completamento della FASE C VEHICLE.
+
+# === FASE A: configurazione e consenso INITOK ===
+# Eseguire dopo VEHICLE FASE A e dopo aver verificato INIT_SOURCE/INIT_LOAD.
+UE=0 @300
+HFC=0 @300
+WPTHFC=0 @300
+WPT=0 @300
+SMVBUS=5 @300
+SMICOIL=400 @300
+SMBOOTLOAD=15 @300
+WPTSRC=20000 @300
+WPTLOAD=20000 @300
+WPTIMAX=5000 @300
+UH=2 @300
+UP=0 @300
+UV=20000 @300
+UA=4000 @300
+UD=950 @300
+US=2000 @300
+UX=30000 @300
+UC=6000 @300
+UN=22 @300
+UF=1 @300
+SMTHR? @300
+SMBOOT? @300
+WPT? @300
+UQ? @300
+RADIO? @300
+INITOK @1000
+# Verificare: STATION=WAIT_SOURCE, CtrlState=INITOK.
+# Quindi eseguire VEHICLE FASE B.
+
+# === FASE B: consenso WPT ===
+# Eseguire solo dopo VEHICLE=PRECHARGE_SOURCE.
+WPT=1 @1000
+VARS? @300
+WPT? @300
+# Verificare: STATION=WAIT_SOURCE, ruolo LOAD, radio OK.
+# Quindi eseguire VEHICLE FASE C e, una volta verificata, VIN ON.

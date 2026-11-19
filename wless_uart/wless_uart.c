@@ -15,7 +15,7 @@
 
 #define WLESS_UART_TOKEN_SEP       ';'
 
-const int FIRMWARE_RELEASE = 1135;
+const int FIRMWARE_RELEASE = 1137;
 
 /*
  * UART power-command envelope.  These values mirror the native UniPD / BBC
@@ -194,6 +194,7 @@ static void WLESS_UART_applyUnipdDirectionalCurrentLimit(void);
 static void WLESS_UART_sendBbcCaptureStatus(void);
 static void WLESS_UART_sendBbcCaptureDump(void);
 static void WLESS_UART_sendWptIntegration(void);
+static void WLESS_UART_sendWptTemperature(void);
 static void WLESS_UART_sendWptSnapshot(void);
 static void WLESS_UART_sendWptCaptureStatus(void);
 static void WLESS_UART_sendWptCaptureDump(void);
@@ -509,7 +510,7 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(WLESS_UART_parseExactUnsigned(command, "IO=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
-        if(wptValue > 500UL)
+        if(wptValue > WLESS_CONFIG_ITANK_OFFSET_MAX_MV)
         {
             WLESS_UART_sendString("IO RANGE\r\n");
             return 1U;
@@ -523,7 +524,8 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     if(WLESS_UART_parseExactUnsigned(command, "IG=", &wptValue) != 0U)
     {
         WLESS_UART_commandCount++;
-        if((wptValue < 100UL) || (wptValue > 1000UL))
+        if((wptValue < WLESS_CONFIG_ITANK_SENSITIVITY_MIN_MV_A) ||
+           (wptValue > WLESS_CONFIG_ITANK_SENSITIVITY_MAX_MV_A))
         {
             WLESS_UART_sendString("IG RANGE\r\n");
             return 1U;
@@ -1273,6 +1275,12 @@ static uint16_t WLESS_UART_handleCommand(const char *command)
     {
         WLESS_UART_commandCount++;
         WLESS_UART_sendWptIntegration();
+        return 0U;
+    }
+    if(strcmp(command, "WPTTEMP?") == 0)
+    {
+        WLESS_UART_commandCount++;
+        WLESS_UART_sendWptTemperature();
         return 0U;
     }
     if(strcmp(command, "WPTSNAP?") == 0)
@@ -2229,6 +2237,24 @@ static void WLESS_UART_sendWptIntegration(void)
     WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcOutput.duty_cycle_ps_a * 1000.0f));
     WLESS_UART_sendString(",PSB_mpu=");
     WLESS_UART_sendInt((int32_t)(UNIPD_wptHfcOutput.duty_cycle_ps_b * 1000.0f));
+    WLESS_UART_sendString("\r\n");
+}
+
+/* Raw GaN-temperature mux telemetry.  Each Tn value is in deci-degrees C;
+ * -10 represents the internal invalid-sample sentinel (-1.0 degC). */
+static void WLESS_UART_sendWptTemperature(void)
+{
+    uint16_t index;
+
+    WLESS_UART_sendString("TT,1");
+    for(index = 0U; index < CLLLC_TEMP_CHAN; index++)
+    {
+        WLESS_UART_sendString(",T");
+        WLESS_UART_sendInt((int32_t)index);
+        WLESS_UART_sendString("=");
+        WLESS_UART_sendInt((int32_t)(CLLLC_HAL_GaNTemp_C.array[index] *
+                                     10.0f));
+    }
     WLESS_UART_sendString("\r\n");
 }
 

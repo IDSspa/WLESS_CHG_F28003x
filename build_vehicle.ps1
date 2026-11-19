@@ -22,6 +22,18 @@ try {
         throw "Clean fallito con codice $LASTEXITCODE"
     }
 
+    # Il clean generato da CCS puo' lasciare oggetti nella root RELEASE.
+    # Devono essere ricompilati per ogni ruolo, in particolare wless_config.c
+    # che seleziona i default di calibrazione della controlCARD compilata.
+    $rootGenerated = @(
+        'obc_7_4kw.obj', 'obc_7_4kw.lst', 'obc_7_4kw.asm', 'obc_7_4kw.d_raw', 'obc_7_4kw.d',
+        'obc_7_4kw_main.obj', 'obc_7_4kw_main.lst', 'obc_7_4kw_main.asm', 'obc_7_4kw_main.d_raw', 'obc_7_4kw_main.d',
+        'wless_config.obj', 'wless_config.lst', 'wless_config.asm', 'wless_config.d_raw', 'wless_config.d'
+    )
+    foreach ($artifact in $rootGenerated) {
+        Remove-Item -LiteralPath (Join-Path $release $artifact) -Force -ErrorAction SilentlyContinue
+    }
+
     & $GMake -k -j 20 all -r -O $roleDefine
     if ($LASTEXITCODE -ne 0) {
         throw "Build VEHICLE fallita con codice $LASTEXITCODE"

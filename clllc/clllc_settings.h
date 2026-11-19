@@ -288,7 +288,16 @@ extern "C" {
 #define CLLLC_ISR1_RUNNING_ON CLLLC_CONTROL_RUNNING_ON
 
 #define CLLLC_ISR2_FREQUENCY_HZ ((float32_t)21250)
-#define CLLLC_ISR3_FREQUENCY_HZ ((float32_t)10000)
+/*
+ * ISR3 services the eCAP temperature mux at 20 kHz.  The legacy CLLLC
+ * housekeeping remains explicitly decimated to its historical 10 kHz rate;
+ * keeping the two rates separate prevents an unintended change to filters,
+ * references and dead-band service when the temperature sampler is sped up.
+ */
+#define CLLLC_ISR3_FREQUENCY_HZ         ((float32_t)20000)
+#define CLLLC_ISR3_CONTROL_DECIMATION   (2U)
+#define CLLLC_ISR3_CONTROL_FREQUENCY_HZ \
+        (CLLLC_ISR3_FREQUENCY_HZ / (float32_t)CLLLC_ISR3_CONTROL_DECIMATION)
 #define CLLLC_SFRA_ISR_FREQ_HZ       CLLLC_ISR2_FREQUENCY_HZ
 
 //

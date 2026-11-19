@@ -462,6 +462,12 @@ void CLLLC_updateFaultDebugSignals(void)
 
 void CLLLC_runISR3(void)
 {
+    /* ISR3 is clocked at 20 kHz for eCAP temperature acquisition.  Keep the
+     * pre-existing non-thermal service exactly at 10 kHz. */
+    static uint16_t controlDecimation;
+
+    if(controlDecimation == 0U)
+    {
     CLLLC_updateFaultDebugSignals();
 
     CLLLC_iSecSenseDiag = CLLLC_readSecSenseDiag();
@@ -489,22 +495,22 @@ void CLLLC_runISR3(void)
             if((CLLLC_vSecRef_pu - CLLLC_vSecRefSlewed_pu) >
                 (2.0f * CLLLC_VOLTS_PER_SECOND_SLEW /
                         CLLLC_VSEC_OPTIMAL_RANGE_VOLTS) *
-                (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ))
+                        (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ))
             {
                 CLLLC_vSecRefSlewed_pu = CLLLC_vSecRefSlewed_pu +
                         ((CLLLC_VOLTS_PER_SECOND_SLEW /
                                 CLLLC_VSEC_OPTIMAL_RANGE_VOLTS) *
-                      (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ));
+                      (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ));
             }
             else if((CLLLC_vSecRef_pu - CLLLC_vSecRefSlewed_pu) <
                     - (2.0f * CLLLC_VOLTS_PER_SECOND_SLEW /
                             CLLLC_VSEC_OPTIMAL_RANGE_VOLTS)
-                    * (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ))
+                    * (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ))
             {
                 CLLLC_vSecRefSlewed_pu = CLLLC_vSecRefSlewed_pu -
                         ((CLLLC_VOLTS_PER_SECOND_SLEW /
                                 CLLLC_VSEC_OPTIMAL_RANGE_VOLTS) *
-                     (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ));
+                     (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ));
             }
             else
             {
@@ -517,22 +523,22 @@ void CLLLC_runISR3(void)
             if((CLLLC_vPrimRef_pu - CLLLC_vPrimRefSlewed_pu) >
                 (2.0f * CLLLC_VOLTS_PER_SECOND_SLEW /
                         CLLLC_VPRIM_MAX_SENSE_VOLTS)
-                * (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ))
+                * (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ))
             {
                 CLLLC_vPrimRefSlewed_pu = CLLLC_vPrimRefSlewed_pu +
                         ((CLLLC_VOLTS_PER_SECOND_SLEW /
                                 CLLLC_VPRIM_MAX_SENSE_VOLTS) *
-                      (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ));
+                      (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ));
             }
             else if((CLLLC_vPrimRef_pu - CLLLC_vPrimRefSlewed_pu) <
                     - (2.0f * CLLLC_VOLTS_PER_SECOND_SLEW /
                             CLLLC_VPRIM_MAX_SENSE_VOLTS)
-                 * (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ))
+                 * (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ))
             {
                 CLLLC_vPrimRefSlewed_pu = CLLLC_vPrimRefSlewed_pu -
                         ((CLLLC_VOLTS_PER_SECOND_SLEW /
                                 CLLLC_VPRIM_MAX_SENSE_VOLTS) *
-                     (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ));
+                     (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ));
             }
             else
             {
@@ -544,20 +550,20 @@ void CLLLC_runISR3(void)
 
         if((CLLLC_iSecRef_pu - CLLLC_iSecRefSlewed_pu) >
             (2.0f * CLLLC_AMPS_PER_SECOND_SLEW / CLLLC_ISEC_MAX_SENSE_AMPS) *
-            (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ))
+            (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ))
         {
             CLLLC_iSecRefSlewed_pu = CLLLC_iSecRefSlewed_pu +
               ((CLLLC_AMPS_PER_SECOND_SLEW / CLLLC_ISEC_MAX_SENSE_AMPS) *
-               (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ));
+               (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ));
         }
         else if((CLLLC_iSecRef_pu - CLLLC_iSecRefSlewed_pu) <
              - (2.0f * CLLLC_AMPS_PER_SECOND_SLEW /
                      CLLLC_ISEC_MAX_SENSE_AMPS) *
-               (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ))
+                     (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ))
         {
             CLLLC_iSecRefSlewed_pu = CLLLC_iSecRefSlewed_pu -
                  ((CLLLC_AMPS_PER_SECOND_SLEW / CLLLC_ISEC_MAX_SENSE_AMPS) *
-                 (1.0f / (float32_t)CLLLC_ISR3_FREQUENCY_HZ));
+                 (1.0f / CLLLC_ISR3_CONTROL_FREQUENCY_HZ));
         }
         else
         {
@@ -570,6 +576,14 @@ void CLLLC_runISR3(void)
 
     CLLLC_HAL_updatePWMDeadBandPrim(CLLLC_pwmDeadBandREDPrim_ticks,
                                     CLLLC_pwmDeadBandFEDPrim_ticks);
+
+    }
+
+    controlDecimation++;
+    if(controlDecimation >= CLLLC_ISR3_CONTROL_DECIMATION)
+    {
+        controlDecimation = 0U;
+    }
 
     CLLLC_HAL_updateGaNTemp();
 }

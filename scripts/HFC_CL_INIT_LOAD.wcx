@@ -1,0 +1,28 @@
+FW?		# versione firmware (atteso 1066)
+ROLE?		# attesp BUILD=VEHICLE o BUILD=STATION
+HFC=0		# disabilita HFC
+WPT=0		# disabilita trasferimento wireless
+SMTHR?
+
+CQ?
+RADIO?		# stato collegamento radio
+
+WPTILOAD=OFF
+WPTIZERO=0	# resetta lo zero di corrente
+WPT? 		# interroga lo stato per rilevare il valore di corrente (per la calibrazione)
+
+
+WPTSRC=10000	# soglia minima tensione source (in mV)
+WPTLOAD=10000	# soglia minima tensione load (in mV)
+WPTIMAX=5000	# corrente massima (in mA)
+WPTCLAMP=0	# disabilita il clamp di corrente sul primo quadrante
+
+WPTILOAD=OFF
+WPTIZERO=IPHY_mA *	#  inserire il valor medio acquisito (calibrazione)
+WPTPLOADINIT=15
+WPT?		# attemdere conferme valori impostati (EN=0, SRCREF_mV=10000, LOADREF_mV=10000. corrente a 0...)
+
+# Quando lo stato -> INIT_LOAD
+
+INITOK	@1000
+

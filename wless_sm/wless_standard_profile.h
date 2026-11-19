@@ -22,9 +22,27 @@
 #define WLESS_PROFILE_LOCAL_ICOIL_MIN_VEHICLE_MA    100U      /* mA */
 #define WLESS_PROFILE_LOCAL_ICOIL_MIN_STATION_MA    400U      /* mA */
 
+/* Calibrazione delle catene di corrente, specifica della controlCARD/scheda
+ * fisica e non del ruolo runtime SOURCE/LOAD. Questi valori sono usati dopo
+ * flash quando non esiste un record di configurazione valido; il record flash
+ * creato da UF=2/CA + CS continua a poterli correggere per la singola scheda.
+ *
+ * I valori raw BBC sono conteggi ADC a 12 bit. L'offset ITANK_MOD e' espresso
+ * in mV, quello coil LOAD in mA. */
+#define WLESS_PROFILE_VEHICLE_ITANK_OFFSET_MV       120U      /* mV */
+#define WLESS_PROFILE_STATION_ITANK_OFFSET_MV        40U      /* mV */
+#define WLESS_PROFILE_ITANK_SENS_MV_A                 84U      /* mV/A */
+#define WLESS_PROFILE_ITANK_LIMIT_MA               37500U      /* mA */
+#define WLESS_PROFILE_VEHICLE_ILA_OFFSET_RAW        2090U      /* ADC count */
+#define WLESS_PROFILE_VEHICLE_ILB_OFFSET_RAW        2019U      /* ADC count */
+#define WLESS_PROFILE_STATION_ILA_OFFSET_RAW        2056U      /* ADC count */
+#define WLESS_PROFILE_STATION_ILB_OFFSET_RAW        2066U      /* ADC count */
+#define WLESS_PROFILE_VEHICLE_WPT_LOAD_OFFSET_MA       0U      /* mA */
+#define WLESS_PROFILE_STATION_WPT_LOAD_OFFSET_MA       0U      /* mA */
+
 /* Riferimenti UniPD/WPT condivisi dalla coppia SOURCE/LOAD. */
-#define WLESS_PROFILE_WPT_VDC_SOURCE_REF_V          20.0f     /* V */
-#define WLESS_PROFILE_WPT_VDC_LOAD_REF_V            20.0f     /* V */
+#define WLESS_PROFILE_WPT_VDC_SOURCE_REF_V          21.0f     /* V */
+#define WLESS_PROFILE_WPT_VDC_LOAD_REF_V            21.0f     /* V */
 #define WLESS_PROFILE_WPT_COIL_CURRENT_MAX_A         5.0f     /* A */
 #define WLESS_PROFILE_WPT_SOURCE_POWER_SEED_W       15.0f     /* W */
 #define WLESS_PROFILE_WPT_HFC_PHASE_LIMIT_MPU       400U      /* milli-pu */
@@ -43,7 +61,7 @@
 #define WLESS_PROFILE_SOURCE_BOOT_DUTY_MAX_MPU       500U     /* milli-pu */
 #define WLESS_PROFILE_SOURCE_HFC_DUTY_MAX_MPU        525U     /* milli-pu */
 #define WLESS_PROFILE_SOURCE_HANDOFF_DUTY_MAX_MPU    600U     /* milli-pu */
-#define WLESS_PROFILE_SOURCE_HFC_SOFT_COIL_LIMIT_MA 4500U     /* mA */
+#define WLESS_PROFILE_SOURCE_HFC_SOFT_COIL_LIMIT_MA 6000U     /* mA */
 
 /* LOAD: soglie locali di bootstrap del BUCK. */
 #define WLESS_PROFILE_LOAD_BOOT_VBUS_MIN_V            15U     /* V */
@@ -61,14 +79,14 @@
 /* Override VBAT del SOURCE per il banco a 12 V.  A 1 UniPD usa il valore
  * diagnostico sopra; a 0 conserva la misura ADC fisica VIN/VBAT.  VDC e
  * correnti di ramo restano sempre fisici in entrambe le configurazioni. */
-#define WLESS_PROFILE_SOURCE_BBC_VBAT_OVERRIDE_ENABLE  1U     /* boolean */
+#define WLESS_PROFILE_SOURCE_BBC_VBAT_OVERRIDE_ENABLE  0U     /* boolean */
 
 /* Profilo BBC applicabile soltanto dopo l'assegnazione del ruolo LOAD. */
 #define WLESS_PROFILE_LOAD_BBC_HYBRID_MODE             2U     /* UH */
 #define WLESS_PROFILE_LOAD_BBC_VBAT_DIAG_MV        12000U     /* mV */
 #define WLESS_PROFILE_LOAD_BBC_CURRENT_POLARITY_MASK   0U     /* UP */
-#define WLESS_PROFILE_LOAD_BBC_VDC_REF_MV          20000U     /* mV */
-#define WLESS_PROFILE_LOAD_BBC_CURRENT_LIMIT_MA     4000U     /* mA */
+#define WLESS_PROFILE_LOAD_BBC_VDC_REF_MV          21000U     /* mV */
+#define WLESS_PROFILE_LOAD_BBC_CURRENT_LIMIT_MA     5000U     /* mA */
 #define WLESS_PROFILE_LOAD_BBC_VDC_TRIP_MV         30000U     /* mV */
 #define WLESS_PROFILE_LOAD_BBC_IL_TRIP_MA           6000U     /* mA, per ramo */
 #define WLESS_PROFILE_LOAD_BBC_DUTY_MAX_MPU          950U     /* milli-pu */
@@ -76,7 +94,7 @@
 /* Override VBAT del LOAD per il banco a 12 V.  A 1 UniPD usa il valore
  * diagnostico sopra; a 0 conserva la misura ADC fisica VIN/VBAT.  VDC e
  * correnti di ramo restano sempre fisici in entrambe le configurazioni. */
-#define WLESS_PROFILE_LOAD_BBC_VBAT_OVERRIDE_ENABLE    1U     /* boolean */
+#define WLESS_PROFILE_LOAD_BBC_VBAT_OVERRIDE_ENABLE    0U     /* boolean */
 
 /* Protezione BBC comune ai due profili di ruolo. */
 #define WLESS_PROFILE_BBC_IL_TRIP_CONFIRM_CYCLES      22U     /* cicli ISR */

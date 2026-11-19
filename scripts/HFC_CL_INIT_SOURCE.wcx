@@ -1,0 +1,33 @@
+FW?		# versione firmware (atteso 1066)
+ROLE?		# attesp BUILD=VEHICLE o BUILD=STATION
+HFC=0		# disabilita HFC
+WPT=0		# disabilita trasferimento wireless
+SMTHR?
+
+CQ?
+RADIO?		# stato collegamento radio
+
+WPTHFC=0	# disabilita trasferimento wireless
+SMVBUS=5	# soglia VBUS 5V (default 50V)
+SMTHR?
+
+WPTSRC=10000	# soglia minima tensione source (in mV)
+WPTLOAD=10000	# soglia minima tensione load (in mV)
+WPTIMAX=5000	# corrente massima (in mA)
+WPTCLAMP=0	# disabilita il clamp di corrente sul primo quadrante
+
+WPTISRC=0
+WPTPLIMINIT=120	# limite di potenza (in W)
+WPTIRINV=0
+WPTHFCINV=0
+WPTHFCLIM=350
+WPTHFCRAMP=0
+WPTHFCPHAUTO
+WPT?		# attemdere conferme valori impostati (EN=0, SRCREF_mV=10000, LOADREF_mV=10000...)
+
+MANUAL	@1000	# modalità manuale
+SOURCE	@1000	# ruolo source
+
+# Quando lo stato è di LOAD -> INIT_LOAD
+
+INITOK	@1000

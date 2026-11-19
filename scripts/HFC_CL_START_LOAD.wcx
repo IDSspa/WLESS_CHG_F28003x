@@ -1,0 +1,8 @@
+WPT=1	@1000
+# Attendere reply coerenti con le impostazioni EN=1,....
+
+SMTHR?
+WPT?
+RADIO?
+
+# Verificare WPT  EN=1, ruolo corretto, RadioLink=OK, HENA=0 HFLT=0, MAN=0, MAPINV=0
